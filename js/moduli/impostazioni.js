@@ -188,14 +188,23 @@ function renderPlanSection(data) {
 
     const currentPlanId = data.plan || 'starter';
     const currentPlan = PLANS[currentPlanId] || PLANS.starter;
+    const isFree = data.subscriptionFree === true;
+    const priceLabel = isFree ? 'Gratis' : currentPlan.price;
 
     let html = `
         <div style="margin-bottom:16px">
             <span class="badge ${currentPlan.color}" style="font-size:16px;padding:8px 20px">
-                ${currentPlan.name} — ${currentPlan.price}
+                ${currentPlan.name} — ${priceLabel}
             </span>
         </div>
     `;
+
+    // Account interno (owner/staff): niente upgrade né billing
+    if (isFree) {
+        html += `<p style="color:var(--gray-500);font-size:13px;margin-top:8px">Account interno — nessun addebito.</p>`;
+        planEl.innerHTML = html;
+        return;
+    }
 
     // Bottoni upgrade per piani superiori
     const upgradePlans = Object.entries(PLANS).filter(

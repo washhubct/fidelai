@@ -18,7 +18,9 @@ export function initAuth() {
 
             const paymentStatus = params.get('payment');
 
-            const needsPayment = state.merchantData && !state.merchantData.stripeSubscriptionId;
+            const needsPayment = state.merchantData
+                && !state.merchantData.stripeSubscriptionId
+                && state.merchantData.subscriptionFree !== true;
 
             if (paymentStatus === 'success') {
                 // Ritorno da Stripe Checkout

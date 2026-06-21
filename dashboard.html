@@ -413,7 +413,7 @@
                     <div class="panel mt-24">
                         <div class="panel-header">
                             <h3>Catalogo premi</h3>
-                            <button class="btn btn-primary btn-sm" onclick="document.getElementById('reward-modal').classList.add('active')">+ Aggiungi premio</button>
+                            <button class="btn btn-primary btn-sm" onclick="window.openNewRewardModal && window.openNewRewardModal()">+ Aggiungi premio</button>
                         </div>
                         <div class="panel-body" id="rewards-list">
                             <div class="empty-state">
@@ -800,11 +800,12 @@
     <div class="modal-overlay" id="reward-modal">
         <div class="modal">
             <div class="modal-header">
-                <h3>Nuovo premio</h3>
+                <h3 id="reward-modal-title">Nuovo premio</h3>
                 <button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('active')">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="reward-form">
+                    <input type="hidden" id="reward-id" value="">
                     <div class="form-group">
                         <label>Nome premio</label>
                         <input type="text" id="reward-name" class="form-control" placeholder="Es. Caffè omaggio" required>
@@ -817,11 +818,17 @@
                         <label>Descrizione</label>
                         <textarea id="reward-desc" class="form-control" rows="2" placeholder="Opzionale..."></textarea>
                     </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="reward-active" checked style="width:18px;height:18px;cursor:pointer;">
+                            <span>Premio attivo (visibile ai clienti)</span>
+                        </label>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').classList.remove('active')">Annulla</button>
-                <button class="btn btn-primary" type="submit" form="reward-form">Aggiungi premio</button>
+                <button class="btn btn-primary" type="submit" form="reward-form" id="reward-submit-btn">Aggiungi premio</button>
             </div>
         </div>
     </div>
@@ -928,15 +935,15 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <script type="module">
-        import { initAuth, logout } from './js/moduli/auth.js';
+        import { initAuth, logout } from './js/moduli/auth.js?v=20260619b';
         import { initNavigazione, navigateTo } from './js/moduli/navigazione.js';
         import { initHome } from './js/moduli/home.js';
-        import { initLoyalty } from './js/moduli/loyalty.js';
+        import { initLoyalty } from './js/moduli/loyalty.js?v=20260619c';
         import { initClienti, exportCSV } from './js/moduli/clienti.js';
         import { initCampagne } from './js/moduli/campagne.js';
         import { initAnalytics } from './js/moduli/analytics.js';
         import { initAiAgent } from './js/moduli/ai-agent.js';
-        import { initImpostazioni } from './js/moduli/impostazioni.js';
+        import { initImpostazioni } from './js/moduli/impostazioni.js?v=20260619a';
         import { initTransazioni, refreshCustomerDropdown } from './js/moduli/transazioni.js';
         import { initOnboarding, showOnboarding } from './js/moduli/onboarding.js';
 

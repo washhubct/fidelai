@@ -55,20 +55,73 @@ async function loadRewards() {
         const card = document.createElement('div');
         card.className = 'feature-card';
         card.style.padding = '20px';
+        const safeName = (r.name || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+        const safeDesc = (r.description || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
         card.innerHTML = `
             <div class="flex-between mb-8">
-                <h3 style="font-size:16px">${r.name}</h3>
+                <h3 style="font-size:16px">${safeName}</h3>
                 <span class="badge badge-primary">${formatNumber(r.pointsCost)} pts</span>
             </div>
-            <p style="font-size:14px;color:var(--gray-500)">${r.description || ''}</p>
-            <div class="flex-between mt-16">
-                <span class="badge ${r.active ? 'badge-success' : 'badge-warning'}">${r.active ? 'Attivo' : 'Disattivo'}</span>
-                <button class="btn btn-ghost btn-sm" onclick="deleteReward('${doc.id}')">Elimina</button>
+            <p style="font-size:14px;color:var(--gray-500)">${safeDesc}</p>
+            <div class="flex-between mt-16" style="gap:8px;flex-wrap:wrap;">
+                <span class="badge ${r.active ? 'badge-success' : 'badge-warning'}" style="cursor:pointer;" onclick="toggleRewardActive('${doc.id}', ${!r.active})" title="Clicca per ${r.active ? 'disattivare' : 'attivare'}">${r.active ? '● Attivo' : '○ Disattivo'}</span>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-ghost btn-sm" onclick="editReward('${doc.id}')">Modifica</button>
+                    <button class="btn btn-ghost btn-sm" onclick="deleteReward('${doc.id}')" style="color:#dc2626;">Elimina</button>
+                </div>
             </div>
         `;
         container.appendChild(card);
     });
 }
+
+function resetRewardForm() {
+    document.getElementById('reward-id').value = '';
+    document.getElementById('reward-name').value = '';
+    document.getElementById('reward-points').value = '';
+    document.getElementById('reward-desc').value = '';
+    document.getElementById('reward-active').checked = true;
+    document.getElementById('reward-modal-title').textContent = 'Nuovo premio';
+    document.getElementById('reward-submit-btn').textContent = 'Aggiungi premio';
+}
+
+window.openNewRewardModal = function () {
+    resetRewardForm();
+    document.getElementById('reward-modal').classList.add('active');
+};
+
+window.editReward = async function (id) {
+    if (!state.merchantId) return;
+    try {
+        const doc = await db.collection(`merchants/${state.merchantId}/rewards`).doc(id).get();
+        if (!doc.exists) {
+            showToast('Premio non trovato', 'error');
+            return;
+        }
+        const r = doc.data();
+        document.getElementById('reward-id').value = id;
+        document.getElementById('reward-name').value = r.name || '';
+        document.getElementById('reward-points').value = r.pointsCost || 0;
+        document.getElementById('reward-desc').value = r.description || '';
+        document.getElementById('reward-active').checked = r.active !== false;
+        document.getElementById('reward-modal-title').textContent = 'Modifica premio';
+        document.getElementById('reward-submit-btn').textContent = 'Salva modifiche';
+        document.getElementById('reward-modal').classList.add('active');
+    } catch (e) {
+        showToast('Errore: ' + e.message, 'error');
+    }
+};
+
+window.toggleRewardActive = async function (id, newValue) {
+    if (!state.merchantId) return;
+    try {
+        await db.collection(`merchants/${state.merchantId}/rewards`).doc(id).update({ active: newValue });
+        showToast(newValue ? 'Premio attivato' : 'Premio disattivato');
+        loadRewards();
+    } catch (e) {
+        showToast('Errore: ' + e.message, 'error');
+    }
+};
 
 function setupLoyaltyForms() {
     const configForm = document.getElementById('loyalty-config-form');
@@ -103,20 +156,33 @@ async function addReward(e) {
     e.preventDefault();
     if (!state.merchantId) return;
 
-    const name = document.getElementById('reward-name').value;
+    const id = document.getElementById('reward-id').value;
+    const name = document.getElementById('reward-name').value.trim();
     const pointsCost = parseInt(document.getElementById('reward-points').value);
-    const description = document.getElementById('reward-desc').value;
+    const description = document.getElementById('reward-desc').value.trim();
+    const active = document.getElementById('reward-active').checked;
 
     try {
-        await db.collection(`merchants/${state.merchantId}/rewards`).add({
-            name,
-            pointsCost,
-            description,
-            active: true,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showToast('Premio aggiunto!');
-        e.target.reset();
+        if (id) {
+            await db.collection(`merchants/${state.merchantId}/rewards`).doc(id).update({
+                name,
+                pointsCost,
+                description,
+                active,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast('Premio aggiornato');
+        } else {
+            await db.collection(`merchants/${state.merchantId}/rewards`).add({
+                name,
+                pointsCost,
+                description,
+                active,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast('Premio aggiunto!');
+        }
+        resetRewardForm();
         loadRewards();
         closeModal('reward-modal');
     } catch (error) {
