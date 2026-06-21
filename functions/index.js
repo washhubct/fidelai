@@ -953,3 +953,6 @@ ${moreText}
         }
     }
 );
+
+// External API (service-to-service, es. bridge Wash Hub)
+Object.assign(exports, require("./external-api"));
