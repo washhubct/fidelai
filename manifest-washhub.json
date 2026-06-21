@@ -1,0 +1,30 @@
+{
+    "name": "Wash Hub Card",
+    "short_name": "Wash Hub",
+    "description": "La tua card fedeltà Wash Hub",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#1a1410",
+    "theme_color": "#C8A84E",
+    "icons": [
+        {
+            "src": "/brand/logo-autolavaggi-scontornato.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/brand/logo-autolavaggi-scontornato.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/brand/logo-autolavaggi-scontornato.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

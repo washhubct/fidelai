@@ -2,6 +2,15 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Domini custom white-label → vanno direttamente alla card del cliente
+        (function () {
+            var WHITELABEL_HOSTS = ['card.washhub.it'];
+            if (WHITELABEL_HOSTS.indexOf(location.hostname) !== -1) {
+                location.replace('/card.html' + location.search);
+            }
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FidelAI — Fidelizza i tuoi clienti con l'intelligenza artificiale</title>
     <meta name="description" content="Piattaforma loyalty e CRM per negozi e attività locali. Card digitale, punti, premi, campagne e AI agent.">

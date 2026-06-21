@@ -1,9 +1,10 @@
-const CACHE_NAME = 'fidelai-card-v2';
+const CACHE_NAME = 'fidelai-card-v7';
 
 const STATIC_ASSETS = [
   '/card.html',
   '/css/style.css',
   '/manifest.json',
+  '/manifest-washhub.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
 ];
 
@@ -59,7 +60,6 @@ async function cacheFirst(request) {
     }
     return response;
   } catch {
-    // Offline and not cached — return a basic fallback for navigation requests
     if (request.mode === 'navigate') {
       return caches.match('/card.html');
     }

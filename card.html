@@ -14,7 +14,57 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1E1B4B">
-    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-title" content="FidelAI">
+    <link rel="apple-touch-icon" href="./icon-192.svg">
+    <link rel="manifest" href="manifest.json" id="app-manifest">
+    <script>
+        // Hostname-aware white-label: applica manifest, meta e branding visivo
+        // PRIMA che parta il fetch Firestore, così niente flash "FidelAI" iniziale.
+        window.__hostBrands = {
+            'card.washhub.it': {
+                merchantSlug: 'washhub',
+                manifest: 'manifest-washhub.json',
+                title: 'Wash Hub Card',
+                businessName: 'Wash Hub',
+                themeColor: '#C8A84E',
+                primaryColor: '#C8A84E',
+                appleIcon: '/brand/logo-autolavaggi-scontornato.png',
+                appleTitle: 'Wash Hub',
+                logoUrl: '/brand/logo-autolavaggi-scontornato.png'
+            }
+        };
+        (function () {
+            var brand = window.__hostBrands[location.hostname];
+            if (!brand) return;
+            document.title = brand.title;
+            var manifestLink = document.getElementById('app-manifest');
+            if (manifestLink) manifestLink.href = brand.manifest;
+            var themeMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeMeta) themeMeta.setAttribute('content', brand.themeColor);
+            var appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+            if (appleTitleMeta) appleTitleMeta.setAttribute('content', brand.appleTitle);
+            var appleIconLink = document.querySelector('link[rel="apple-touch-icon"]');
+            if (appleIconLink) appleIconLink.setAttribute('href', brand.appleIcon);
+
+            // Sfondo gold immediato (prima del fetch merchant) per evitare flash viola
+            function shade(hex, p) {
+                var n = parseInt(hex.slice(1), 16);
+                var r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+                var f = p / 100;
+                var a = function (c) {
+                    var v = f < 0 ? c * (1 + f) : c + (255 - c) * f;
+                    return Math.max(0, Math.min(255, Math.round(v)));
+                };
+                return '#' + [a(r), a(g), a(b)].map(function (x) { return x.toString(16).padStart(2, '0'); }).join('');
+            }
+            var dark = shade(brand.primaryColor, -45);
+            var mid = shade(brand.primaryColor, -25);
+            var bg = 'linear-gradient(135deg,' + dark + ' 0%,' + mid + ' 50%,' + brand.primaryColor + ' 100%)';
+            var bodyStyle = document.createElement('style');
+            bodyStyle.textContent = 'html,body{background:' + dark + ';}.card-app{background:' + bg + ' !important;}';
+            document.head.appendChild(bodyStyle);
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -30,14 +80,74 @@
 </head>
 <body>
 
+    <script>
+        // Pre-fill DOM con branding statico (nome attività + logo) appena il body
+        // è parsato. Niente flash "FidelAI" sullo schermo prima del fetch.
+        (function () {
+            var brand = window.__hostBrands && window.__hostBrands[location.hostname];
+            if (!brand) return;
+            document.addEventListener('DOMContentLoaded', function () {
+                var name = document.getElementById('card-merchant-name');
+                if (name) name.textContent = brand.businessName;
+                var logo = document.getElementById('card-merchant-logo');
+                if (logo && brand.logoUrl) {
+                    logo.src = brand.logoUrl;
+                    logo.alt = brand.businessName;
+                    logo.style.display = 'block';
+                }
+            });
+        })();
+    </script>
+
+    <!-- Banner "Aggiungi alla schermata Home" (iOS Safari / Android Chrome) -->
+    <div id="install-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;background:rgba(20,20,20,0.96);color:#fff;border-radius:16px;padding:14px 16px;z-index:9999;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,0.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <div style="font-size:28px;">📲</div>
+            <div style="flex:1;line-height:1.35;">
+                <div id="install-text" style="font-weight:600;">Aggiungi la card alla Home</div>
+                <div id="install-sub" style="opacity:0.7;font-size:12px;margin-top:2px;">Avrai i tuoi punti sempre a portata di mano</div>
+            </div>
+            <button id="install-btn" style="background:#fff;color:#111;border:0;border-radius:10px;padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;">Installa</button>
+            <button id="install-close" aria-label="Chiudi" style="background:transparent;border:0;color:#fff;opacity:0.5;font-size:22px;cursor:pointer;padding:0 4px;">×</button>
+        </div>
+    </div>
+
     <div class="card-app">
         <div class="card-container">
 
             <!-- Header -->
             <div class="card-header">
-                <img id="card-merchant-logo" src="" alt="" style="display:none;max-height:64px;max-width:180px;margin:0 auto 12px;border-radius:8px;background:#fff;padding:4px">
-                <p class="card-merchant" id="card-merchant-name">FidelAI</p>
-                <h1>La tua Card Fedeltà</h1>
+                <img id="card-merchant-logo" src="" alt="" style="display:none;max-height:96px;max-width:240px;margin:0 auto 16px;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.25));">
+                <p class="card-merchant" id="card-merchant-name">&nbsp;</p>
+                <h1 id="card-main-title">La tua Card Fedeltà</h1>
+            </div>
+
+            <!-- Lookup / Self-register (visibile solo su hostname white-label senza ?c=) -->
+            <div id="card-lookup-section" style="display:none;color:#fff;">
+                <div style="background:rgba(255,255,255,0.10);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:18px;padding:22px;margin:16px 0;">
+                    <div id="card-lookup-step-phone">
+                        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;">Trova la tua card</h2>
+                        <p style="margin:0 0 18px;opacity:0.85;font-size:14px;">Inserisci il tuo numero di cellulare</p>
+                        <form id="card-lookup-form-phone" autocomplete="off">
+                            <div style="display:flex;gap:8px;align-items:stretch;">
+                                <span style="background:rgba(255,255,255,0.18);color:#fff;padding:12px 14px;border-radius:10px;font-weight:600;display:flex;align-items:center;">+39</span>
+                                <input type="tel" id="card-lookup-phone" inputmode="tel" pattern="[0-9]{9,11}" required placeholder="333 1234567" style="flex:1;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;">
+                            </div>
+                            <button type="submit" id="card-lookup-submit" style="margin-top:14px;width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Entra</button>
+                        </form>
+                        <p id="card-lookup-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;"></p>
+                    </div>
+                    <div id="card-lookup-step-name" style="display:none;">
+                        <h2 style="margin:0 0 6px;font-size:20px;font-weight:700;">Benvenuto!</h2>
+                        <p style="margin:0 0 16px;opacity:0.85;font-size:14px;">Non hai ancora una card. Creiamone una in 5 secondi.</p>
+                        <form id="card-lookup-form-name" autocomplete="off">
+                            <input type="text" id="card-lookup-name" placeholder="Come ti chiami?" required minlength="2" maxlength="60" style="width:100%;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;">
+                            <button type="submit" id="card-register-submit" style="margin-top:14px;width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Crea la mia card</button>
+                            <button type="button" id="card-register-back" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:13px;cursor:pointer;">‹ Indietro</button>
+                        </form>
+                        <p id="card-register-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;"></p>
+                    </div>
+                </div>
             </div>
 
             <!-- Loyalty Card -->
@@ -54,6 +164,15 @@
                     <div class="card-progress-fill" id="card-progress-fill" style="width:0%"></div>
                 </div>
                 <div class="card-progress-text" id="card-progress-text">0 / 500 punti per Silver</div>
+            </div>
+
+            <!-- QR per la cassa -->
+            <div class="card-section" id="card-qr-section" style="display:none;">
+                <h3>📱 Mostra alla cassa</h3>
+                <div id="card-qr-container" style="display:flex;flex-direction:column;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:18px;">
+                    <div id="card-qr" style="line-height:0;"></div>
+                    <p style="margin:0;font-size:12px;color:#666;text-align:center;">Fai scansionare per accumulare punti</p>
+                </div>
             </div>
 
             <!-- Premi disponibili -->
@@ -105,6 +224,9 @@
         </div>
     </div>
 
+    <!-- QR code generator (vanilla, 12 KB) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -124,10 +246,100 @@
         const db = firebase.firestore();
 
         // Parse URL params: card.html?m=MERCHANT_ID&c=CUSTOMER_ID
+        // Custom domains pinned to a single merchant (white-label):
+        const HOSTNAME_MERCHANTS = {
+            'card.washhub.it': 'TSfZHShvSqOu4gPGA9JcV0IqmjI2',
+        };
         const params = new URLSearchParams(window.location.search);
-        const merchantId = params.get('m');
+        const merchantId = HOSTNAME_MERCHANTS[location.hostname] || params.get('m');
         const customerId = params.get('c');
         const isDemo = params.get('demo') === 'true';
+
+        // Endpoint Cloud Function pubblico per la self-registration
+        const SELF_REGISTER_ENDPOINT = 'https://europe-west1-fideliai-app.cloudfunctions.net/selfRegisterCustomer';
+
+        function showLookupView() {
+            // Nasconde tutte le sezioni "card piena" e mostra il form lookup
+            document.querySelector('.loyalty-card').style.display = 'none';
+            document.querySelectorAll('.card-section').forEach(el => el.style.display = 'none');
+            var footer = document.getElementById('powered-by');
+            if (footer) footer.style.display = 'none';
+            document.getElementById('card-main-title').textContent = 'La tua Card Fedeltà';
+            document.getElementById('card-lookup-section').style.display = 'block';
+        }
+
+        function normalizePhoneClient(raw) {
+            var d = String(raw || '').replace(/\D/g, '');
+            if (!d) return '';
+            if (d.startsWith('39') && d.length > 10) d = d.slice(2);
+            return d;
+        }
+
+        async function setupLookupFlow() {
+            var brand = window.__hostBrands[location.hostname];
+            var merchantSlug = (brand && brand.merchantSlug) || merchantId;
+
+            document.getElementById('card-lookup-form-phone').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                var err = document.getElementById('card-lookup-error');
+                err.style.display = 'none';
+                var btn = document.getElementById('card-lookup-submit');
+                btn.disabled = true; btn.textContent = '…';
+                try {
+                    var phone = normalizePhoneClient(document.getElementById('card-lookup-phone').value);
+                    if (phone.length < 9 || phone.length > 11) throw new Error('Numero non valido');
+                    // Lookup pubblico (rules consentono read su customers)
+                    var snap = await db.collection('merchants/' + merchantId + '/customers').doc(phone).get();
+                    if (snap.exists) {
+                        location.replace('?c=' + encodeURIComponent(phone));
+                    } else {
+                        // Cliente nuovo → mostra step nome
+                        document.getElementById('card-lookup-step-phone').style.display = 'none';
+                        document.getElementById('card-lookup-step-name').style.display = 'block';
+                        document.getElementById('card-lookup-name').focus();
+                        // Memorizzo phone per il register
+                        document.getElementById('card-lookup-form-name').dataset.phone = phone;
+                    }
+                } catch (ex) {
+                    err.textContent = ex.message || 'Errore';
+                    err.style.display = 'block';
+                } finally {
+                    btn.disabled = false; btn.textContent = 'Entra';
+                }
+            });
+
+            document.getElementById('card-register-back').addEventListener('click', () => {
+                document.getElementById('card-lookup-step-name').style.display = 'none';
+                document.getElementById('card-lookup-step-phone').style.display = 'block';
+            });
+
+            document.getElementById('card-lookup-form-name').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                var err = document.getElementById('card-register-error');
+                err.style.display = 'none';
+                var btn = document.getElementById('card-register-submit');
+                btn.disabled = true; btn.textContent = '…';
+                try {
+                    var phone = e.currentTarget.dataset.phone;
+                    var name = document.getElementById('card-lookup-name').value.trim();
+                    if (!phone) throw new Error('Sessione scaduta, riprova');
+                    if (name.length < 2) throw new Error('Inserisci il tuo nome');
+                    var resp = await fetch(SELF_REGISTER_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ merchant: merchantSlug, phone, name })
+                    });
+                    var data = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !data.ok) throw new Error(data.error || 'Registrazione fallita');
+                    location.replace('?c=' + encodeURIComponent(phone));
+                } catch (ex) {
+                    err.textContent = ex.message || 'Errore';
+                    err.style.display = 'block';
+                } finally {
+                    btn.disabled = false; btn.textContent = 'Crea la mia card';
+                }
+            });
+        }
 
         async function loadCard() {
             if (isDemo) {
@@ -136,6 +348,12 @@
             }
 
             if (!merchantId || !customerId) {
+                // Senza customer ma con merchant → form lookup/register
+                if (merchantId && !customerId) {
+                    showLookupView();
+                    setupLookupFlow();
+                    return;
+                }
                 document.querySelector('.card-customer-name').textContent = 'Link non valido';
                 return;
             }
@@ -160,6 +378,10 @@
 
             document.getElementById('card-customer-name').textContent = customer.name;
             document.getElementById('card-points').textContent = points.toLocaleString('it-IT');
+
+            // QR per la cassa: contiene il customerId (= telefono normalizzato).
+            // Il cassiere può cercarlo nel gestionale, oppure usare uno scanner.
+            renderQrCode(customerId);
 
             // Level
             const level = getLevel(points);
@@ -264,6 +486,82 @@
             return '#' + [adj(r), adj(g), adj(b)].map(x => x.toString(16).padStart(2, '0')).join('');
         }
 
+        function renderQrCode(text) {
+            try {
+                const container = document.getElementById('card-qr');
+                const section = document.getElementById('card-qr-section');
+                if (!container || !section || typeof qrcode === 'undefined') return;
+                const qr = qrcode(0, 'M');
+                qr.addData(String(text));
+                qr.make();
+                container.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1, scalable: true });
+                const svg = container.querySelector('svg');
+                if (svg) {
+                    svg.style.width = '180px';
+                    svg.style.height = '180px';
+                }
+                // Mostra il customerId leggibile sotto il QR — utile alla cassa
+                // se lo scanner non è disponibile.
+                const label = document.createElement('div');
+                label.style.cssText = 'font-family:monospace;font-size:13px;color:#666;letter-spacing:1px;';
+                label.textContent = text;
+                container.parentElement.insertBefore(label, container.parentElement.querySelector('p'));
+                section.style.display = 'block';
+            } catch (e) {
+                console.warn('QR render failed', e);
+            }
+        }
+
+        function setupInstallBanner() {
+            const banner = document.getElementById('install-banner');
+            const btn = document.getElementById('install-btn');
+            const closeBtn = document.getElementById('install-close');
+            const text = document.getElementById('install-text');
+            const sub = document.getElementById('install-sub');
+            if (!banner) return;
+
+            // Già installato? (display-mode standalone su Android o navigator.standalone su iOS)
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (isStandalone) return;
+
+            // Già dismesso in questa sessione?
+            if (sessionStorage.getItem('installBannerDismissed') === '1') return;
+
+            closeBtn?.addEventListener('click', () => {
+                banner.style.display = 'none';
+                sessionStorage.setItem('installBannerDismissed', '1');
+            });
+
+            // Android: aspetta beforeinstallprompt
+            let deferredPrompt = null;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                banner.style.display = 'block';
+            });
+
+            btn?.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                    banner.style.display = 'none';
+                }
+            });
+
+            // iOS Safari: no beforeinstallprompt → mostra istruzioni manuali
+            const ua = window.navigator.userAgent;
+            const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+            const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
+            if (isIOS && isSafari) {
+                text.textContent = 'Aggiungi alla schermata Home';
+                sub.textContent = 'Tocca ⬆️ Condividi → "Aggiungi alla schermata Home"';
+                btn.style.display = 'none';
+                // Mostra dopo 1.5s per non disturbare il caricamento iniziale
+                setTimeout(() => { banner.style.display = 'block'; }, 1500);
+            }
+        }
+
         function getLevel(points) {
             const levels = [
                 { name: 'Bronze', min: 0, next: 500, nextName: 'Silver' },
@@ -336,6 +634,7 @@
         }
 
         loadCard();
+        setupInstallBanner();
     </script>
 
     <!-- Service Worker Registration -->
