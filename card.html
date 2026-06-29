@@ -7,7 +7,6 @@
     <meta name="description" content="La tua card fedeltà digitale: visualizza punti, premi disponibili e storico transazioni.">
     <meta name="robots" content="noindex, nofollow">
 
-    <!-- Open Graph -->
     <meta property="og:title" content="FidelAI — La tua card fedeltà">
     <meta property="og:description" content="La tua card fedeltà digitale: visualizza punti, premi disponibili e storico transazioni.">
 
@@ -18,8 +17,7 @@
     <link rel="apple-touch-icon" href="./icon-192.svg">
     <link rel="manifest" href="manifest.json" id="app-manifest">
     <script>
-        // Hostname-aware white-label: applica manifest, meta e branding visivo
-        // PRIMA che parta il fetch Firestore, così niente flash "FidelAI" iniziale.
+        // Hostname-aware white-label
         window.__hostBrands = {
             'card.washhub.it': {
                 merchantSlug: 'washhub',
@@ -46,7 +44,6 @@
             var appleIconLink = document.querySelector('link[rel="apple-touch-icon"]');
             if (appleIconLink) appleIconLink.setAttribute('href', brand.appleIcon);
 
-            // Sfondo gold immediato (prima del fetch merchant) per evitare flash viola
             function shade(hex, p) {
                 var n = parseInt(hex.slice(1), 16);
                 var r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
@@ -69,7 +66,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
-<!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-WQHQZPV865"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -81,8 +77,6 @@
 <body>
 
     <script>
-        // Pre-fill DOM con branding statico (nome attività + logo) appena il body
-        // è parsato. Niente flash "FidelAI" sullo schermo prima del fetch.
         (function () {
             var brand = window.__hostBrands && window.__hostBrands[location.hostname];
             if (!brand) return;
@@ -99,7 +93,7 @@
         })();
     </script>
 
-    <!-- Banner "Aggiungi alla schermata Home" (iOS Safari / Android Chrome) -->
+    <!-- Banner "Aggiungi alla schermata Home" -->
     <div id="install-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;background:rgba(20,20,20,0.96);color:#fff;border-radius:16px;padding:14px 16px;z-index:9999;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,0.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">
         <div style="display:flex;align-items:center;gap:12px;">
             <div style="font-size:28px;">📲</div>
@@ -112,41 +106,64 @@
         </div>
     </div>
 
+    <!-- Modale codice riscatto -->
+    <div id="redeem-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:#fff;color:#111;border-radius:20px;padding:28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+            <p id="redeem-reward-name" style="margin:0 0 4px;font-size:14px;color:#666;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Premio</p>
+            <h2 style="margin:0 0 18px;font-size:18px;font-weight:700;color:#222;">Mostra o detta questo codice in cassa</h2>
+            <div id="redeem-code" style="font-family:'SF Mono',Monaco,monospace;font-size:64px;font-weight:800;letter-spacing:14px;color:#111;background:#f5f5f7;border-radius:14px;padding:20px 0;margin-bottom:16px;">····</div>
+            <p id="redeem-countdown" style="margin:0 0 18px;font-size:13px;color:#888;">Valido per <strong id="redeem-timer">5:00</strong></p>
+            <p id="redeem-cost" style="margin:0 0 22px;font-size:14px;color:#444;">Costo: <strong>0 punti</strong></p>
+            <button id="redeem-close" style="background:#111;color:#fff;border:0;border-radius:12px;padding:12px 28px;font-weight:600;font-size:14px;cursor:pointer;">Chiudi</button>
+        </div>
+    </div>
+
     <div class="card-app">
         <div class="card-container">
 
-            <!-- Header -->
             <div class="card-header">
                 <img id="card-merchant-logo" src="" alt="" style="display:none;max-height:96px;max-width:240px;margin:0 auto 16px;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.25));">
                 <p class="card-merchant" id="card-merchant-name">&nbsp;</p>
                 <h1 id="card-main-title">La tua Card Fedeltà</h1>
             </div>
 
-            <!-- Lookup / Self-register (visibile solo su hostname white-label senza ?c=) -->
-            <div id="card-lookup-section" style="display:none;color:#fff;">
+            <!-- Form attivazione card (visibile solo se cliente non ha ancora attivato) -->
+            <div id="card-activate-section" style="display:none;color:#fff;">
                 <div style="background:rgba(255,255,255,0.10);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:18px;padding:22px;margin:16px 0;">
-                    <div id="card-lookup-step-phone">
-                        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;">Trova la tua card</h2>
-                        <p style="margin:0 0 18px;opacity:0.85;font-size:14px;">Inserisci il tuo numero di cellulare</p>
-                        <form id="card-lookup-form-phone" autocomplete="off">
-                            <div style="display:flex;gap:8px;align-items:stretch;">
-                                <span style="background:rgba(255,255,255,0.18);color:#fff;padding:12px 14px;border-radius:10px;font-weight:600;display:flex;align-items:center;">+39</span>
-                                <input type="tel" id="card-lookup-phone" inputmode="tel" pattern="[0-9]{9,11}" required placeholder="333 1234567" style="flex:1;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;">
-                            </div>
-                            <button type="submit" id="card-lookup-submit" style="margin-top:14px;width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Entra</button>
-                        </form>
-                        <p id="card-lookup-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;"></p>
-                    </div>
-                    <div id="card-lookup-step-name" style="display:none;">
-                        <h2 style="margin:0 0 6px;font-size:20px;font-weight:700;">Benvenuto!</h2>
-                        <p style="margin:0 0 16px;opacity:0.85;font-size:14px;">Non hai ancora una card. Creiamone una in 5 secondi.</p>
-                        <form id="card-lookup-form-name" autocomplete="off">
-                            <input type="text" id="card-lookup-name" placeholder="Come ti chiami?" required minlength="2" maxlength="60" style="width:100%;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;">
-                            <button type="submit" id="card-register-submit" style="margin-top:14px;width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Crea la mia card</button>
-                            <button type="button" id="card-register-back" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:13px;cursor:pointer;">‹ Indietro</button>
-                        </form>
-                        <p id="card-register-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;"></p>
-                    </div>
+                    <h2 style="margin:0 0 6px;font-size:20px;font-weight:700;">Attiva la tua card fedeltà</h2>
+                    <p style="margin:0 0 18px;opacity:0.85;font-size:14px;">Gratis, in 30 secondi. Inizi ad accumulare punti dalla tua prossima visita.</p>
+                    <form id="card-activate-form" autocomplete="off" novalidate>
+                        <label style="display:block;margin-bottom:10px;font-size:13px;opacity:0.85;">Nome e cognome
+                            <input type="text" id="act-name" required minlength="2" maxlength="60" autocomplete="name" placeholder="Mario Rossi" style="width:100%;margin-top:4px;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;box-sizing:border-box;">
+                        </label>
+                        <label style="display:block;margin-bottom:10px;font-size:13px;opacity:0.85;">Cellulare
+                            <span style="display:flex;gap:6px;align-items:stretch;margin-top:4px;">
+                                <span style="background:rgba(255,255,255,0.18);color:#fff;padding:12px 12px;border-radius:10px;font-weight:600;display:flex;align-items:center;">+39</span>
+                                <input type="tel" id="act-phone" inputmode="tel" pattern="[0-9]{9,11}" required autocomplete="tel-national" placeholder="333 1234567" style="flex:1;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;min-width:0;">
+                            </span>
+                        </label>
+                        <label style="display:block;margin-bottom:16px;font-size:13px;opacity:0.85;">Email
+                            <input type="email" id="act-email" required autocomplete="email" placeholder="mario@esempio.it" style="width:100%;margin-top:4px;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;box-sizing:border-box;">
+                        </label>
+
+                        <div style="background:rgba(0,0,0,0.18);border-radius:12px;padding:14px;margin-bottom:14px;">
+                            <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;margin-bottom:10px;">
+                                <input type="checkbox" id="act-consent-privacy" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
+                                <span>Ho letto e accetto l'<a href="/privacy.html" target="_blank" style="color:#fff;text-decoration:underline;">informativa privacy</a> *</span>
+                            </label>
+                            <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;margin-bottom:10px;">
+                                <input type="checkbox" id="act-consent-sms" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
+                                <span>Acconsento a ricevere SMS con promozioni e reminder *</span>
+                            </label>
+                            <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;">
+                                <input type="checkbox" id="act-consent-email" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
+                                <span>Acconsento a ricevere email con promozioni e novità *</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" id="act-submit" style="width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Attiva la mia card</button>
+                        <p id="act-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;text-align:center;"></p>
+                    </form>
                 </div>
             </div>
 
@@ -166,39 +183,16 @@
                 <div class="card-progress-text" id="card-progress-text">0 / 500 punti per Silver</div>
             </div>
 
-            <!-- QR per la cassa -->
-            <div class="card-section" id="card-qr-section" style="display:none;">
-                <h3>📱 Mostra alla cassa</h3>
-                <div id="card-qr-container" style="display:flex;flex-direction:column;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:18px;">
-                    <div id="card-qr" style="line-height:0;"></div>
-                    <p style="margin:0;font-size:12px;color:#666;text-align:center;">Fai scansionare per accumulare punti</p>
-                </div>
-            </div>
-
             <!-- Premi disponibili -->
             <div class="card-section">
                 <h3>🎁 Premi disponibili</h3>
                 <div id="card-rewards">
                     <div class="reward-item">
                         <div class="reward-info">
-                            <h4>Caffè omaggio</h4>
-                            <p>100 punti</p>
+                            <h4>Caricamento…</h4>
+                            <p>—</p>
                         </div>
-                        <button class="reward-btn locked">100 pts</button>
-                    </div>
-                    <div class="reward-item">
-                        <div class="reward-info">
-                            <h4>Sconto 10%</h4>
-                            <p>500 punti</p>
-                        </div>
-                        <button class="reward-btn locked">500 pts</button>
-                    </div>
-                    <div class="reward-item">
-                        <div class="reward-info">
-                            <h4>Prodotto gratis</h4>
-                            <p>1.000 punti</p>
-                        </div>
-                        <button class="reward-btn locked">1000 pts</button>
+                        <button class="reward-btn locked">—</button>
                     </div>
                 </div>
             </div>
@@ -216,7 +210,6 @@
                 </div>
             </div>
 
-            <!-- Powered by -->
             <div id="powered-by" style="text-align:center;padding:24px 0;opacity:0.4">
                 <p style="font-size:12px;color:white">Powered by FidelAI</p>
             </div>
@@ -224,15 +217,10 @@
         </div>
     </div>
 
-    <!-- QR code generator (vanilla, 12 KB) -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Firebase config
         const firebaseConfig = {
             apiKey: "AIzaSyD7kHbNv09Mg-aYfFXSMKrVdi_JqlOuQF4",
             authDomain: "fideliai-app.firebaseapp.com",
@@ -245,27 +233,23 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Parse URL params: card.html?m=MERCHANT_ID&c=CUSTOMER_ID
-        // Custom domains pinned to a single merchant (white-label):
         const HOSTNAME_MERCHANTS = {
             'card.washhub.it': 'TSfZHShvSqOu4gPGA9JcV0IqmjI2',
         };
         const params = new URLSearchParams(window.location.search);
         const merchantId = HOSTNAME_MERCHANTS[location.hostname] || params.get('m');
-        const customerId = params.get('c');
+        const customerIdParam = params.get('c');
         const isDemo = params.get('demo') === 'true';
+        const API_BASE = 'https://europe-west1-fideliai-app.cloudfunctions.net';
+        const STORAGE_KEY = merchantId ? 'fidelai_customer_' + merchantId : null;
 
-        // Endpoint Cloud Function pubblico per la self-registration
-        const SELF_REGISTER_ENDPOINT = 'https://europe-west1-fideliai-app.cloudfunctions.net/selfRegisterCustomer';
-
-        function showLookupView() {
-            // Nasconde tutte le sezioni "card piena" e mostra il form lookup
-            document.querySelector('.loyalty-card').style.display = 'none';
-            document.querySelectorAll('.card-section').forEach(el => el.style.display = 'none');
-            var footer = document.getElementById('powered-by');
-            if (footer) footer.style.display = 'none';
-            document.getElementById('card-main-title').textContent = 'La tua Card Fedeltà';
-            document.getElementById('card-lookup-section').style.display = 'block';
+        function getStoredCustomerId() {
+            if (!STORAGE_KEY) return null;
+            try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
+        }
+        function setStoredCustomerId(cid) {
+            if (!STORAGE_KEY) return;
+            try { localStorage.setItem(STORAGE_KEY, cid); } catch {}
         }
 
         function normalizePhoneClient(raw) {
@@ -275,90 +259,79 @@
             return d;
         }
 
-        async function setupLookupFlow() {
+        function showActivateView() {
+            document.querySelector('.loyalty-card').style.display = 'none';
+            document.querySelectorAll('.card-section').forEach(el => el.style.display = 'none');
+            var footer = document.getElementById('powered-by');
+            if (footer) footer.style.display = 'block';
+            document.getElementById('card-main-title').textContent = 'La tua Card Fedeltà';
+            document.getElementById('card-activate-section').style.display = 'block';
+        }
+
+        function setupActivateForm() {
             var brand = window.__hostBrands[location.hostname];
             var merchantSlug = (brand && brand.merchantSlug) || merchantId;
+            var form = document.getElementById('card-activate-form');
+            var errEl = document.getElementById('act-error');
+            var btn = document.getElementById('act-submit');
 
-            document.getElementById('card-lookup-form-phone').addEventListener('submit', async (e) => {
+            form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                var err = document.getElementById('card-lookup-error');
-                err.style.display = 'none';
-                var btn = document.getElementById('card-lookup-submit');
+                errEl.style.display = 'none';
                 btn.disabled = true; btn.textContent = '…';
                 try {
-                    var phone = normalizePhoneClient(document.getElementById('card-lookup-phone').value);
-                    if (phone.length < 9 || phone.length > 11) throw new Error('Numero non valido');
-                    // Lookup pubblico (rules consentono read su customers)
-                    var snap = await db.collection('merchants/' + merchantId + '/customers').doc(phone).get();
-                    if (snap.exists) {
-                        location.replace('?c=' + encodeURIComponent(phone));
-                    } else {
-                        // Cliente nuovo → mostra step nome
-                        document.getElementById('card-lookup-step-phone').style.display = 'none';
-                        document.getElementById('card-lookup-step-name').style.display = 'block';
-                        document.getElementById('card-lookup-name').focus();
-                        // Memorizzo phone per il register
-                        document.getElementById('card-lookup-form-name').dataset.phone = phone;
-                    }
-                } catch (ex) {
-                    err.textContent = ex.message || 'Errore';
-                    err.style.display = 'block';
-                } finally {
-                    btn.disabled = false; btn.textContent = 'Entra';
-                }
-            });
+                    var name = document.getElementById('act-name').value.trim();
+                    var phone = normalizePhoneClient(document.getElementById('act-phone').value);
+                    var email = document.getElementById('act-email').value.trim().toLowerCase();
+                    var cPrivacy = document.getElementById('act-consent-privacy').checked;
+                    var cSms = document.getElementById('act-consent-sms').checked;
+                    var cEmail = document.getElementById('act-consent-email').checked;
+                    if (name.length < 2) throw new Error('Inserisci nome e cognome');
+                    if (phone.length < 9 || phone.length > 11) throw new Error('Numero di cellulare non valido');
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email non valida');
+                    if (!cPrivacy || !cSms || !cEmail) throw new Error('Tutti i consensi sono obbligatori');
 
-            document.getElementById('card-register-back').addEventListener('click', () => {
-                document.getElementById('card-lookup-step-name').style.display = 'none';
-                document.getElementById('card-lookup-step-phone').style.display = 'block';
-            });
-
-            document.getElementById('card-lookup-form-name').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                var err = document.getElementById('card-register-error');
-                err.style.display = 'none';
-                var btn = document.getElementById('card-register-submit');
-                btn.disabled = true; btn.textContent = '…';
-                try {
-                    var phone = e.currentTarget.dataset.phone;
-                    var name = document.getElementById('card-lookup-name').value.trim();
-                    if (!phone) throw new Error('Sessione scaduta, riprova');
-                    if (name.length < 2) throw new Error('Inserisci il tuo nome');
-                    var resp = await fetch(SELF_REGISTER_ENDPOINT, {
+                    var resp = await fetch(API_BASE + '/selfActivateCard', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ merchant: merchantSlug, phone, name })
+                        body: JSON.stringify({
+                            merchant: merchantSlug,
+                            name, phone, email,
+                            consentPrivacy: cPrivacy,
+                            consentSms: cSms,
+                            consentEmail: cEmail,
+                        }),
                     });
                     var data = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !data.ok) throw new Error(data.error || 'Registrazione fallita');
+                    if (!resp.ok || !data.ok) throw new Error(data.error || 'Attivazione fallita');
+
+                    setStoredCustomerId(phone);
                     location.replace('?c=' + encodeURIComponent(phone));
                 } catch (ex) {
-                    err.textContent = ex.message || 'Errore';
-                    err.style.display = 'block';
+                    errEl.textContent = ex.message || 'Errore';
+                    errEl.style.display = 'block';
                 } finally {
-                    btn.disabled = false; btn.textContent = 'Crea la mia card';
+                    btn.disabled = false; btn.textContent = 'Attiva la mia card';
                 }
             });
         }
 
         async function loadCard() {
-            if (isDemo) {
-                renderDemo();
-                return;
-            }
+            if (isDemo) { renderDemo(); return; }
 
-            if (!merchantId || !customerId) {
-                // Senza customer ma con merchant → form lookup/register
-                if (merchantId && !customerId) {
-                    showLookupView();
-                    setupLookupFlow();
-                    return;
-                }
+            if (!merchantId) {
                 document.querySelector('.card-customer-name').textContent = 'Link non valido';
                 return;
             }
 
-            // Load merchant info
+            var cid = customerIdParam || getStoredCustomerId();
+
+            if (!cid) {
+                showActivateView();
+                setupActivateForm();
+                return;
+            }
+
             const merchantDoc = await db.collection('merchants').doc(merchantId).get();
             if (merchantDoc.exists) {
                 const m = merchantDoc.data();
@@ -366,87 +339,141 @@
                 applyBranding(m);
             }
 
-            // Load customer
-            const customerDoc = await db.collection(`merchants/${merchantId}/customers`).doc(customerId).get();
-            if (!customerDoc.exists) {
-                document.querySelector('.card-customer-name').textContent = 'Cliente non trovato';
+            const customerDoc = await db.collection(`merchants/${merchantId}/customers`).doc(cid).get();
+            if (!customerDoc.exists || customerDoc.data().cardAttivata !== true) {
+                // Customer non trovato o non ancora attivato → mostra form attivazione
+                if (STORAGE_KEY) { try { localStorage.removeItem(STORAGE_KEY); } catch {} }
+                showActivateView();
+                setupActivateForm();
                 return;
             }
 
+            setStoredCustomerId(cid);
             const customer = customerDoc.data();
             const points = customer.totalPoints || 0;
 
             document.getElementById('card-customer-name').textContent = customer.name;
             document.getElementById('card-points').textContent = points.toLocaleString('it-IT');
 
-            // QR per la cassa: contiene il customerId (= telefono normalizzato).
-            // Il cassiere può cercarlo nel gestionale, oppure usare uno scanner.
-            renderQrCode(customerId);
-
-            // Level
             const level = getLevel(points);
             document.getElementById('card-level').textContent = level.name;
 
-            // Progress
-            const progress = level.next
-                ? Math.min(100, (points / level.next) * 100)
-                : 100;
+            const progress = level.next ? Math.min(100, (points / level.next) * 100) : 100;
             document.getElementById('card-progress-fill').style.width = progress + '%';
             document.getElementById('card-progress-text').textContent = level.next
                 ? `${points.toLocaleString('it-IT')} / ${level.next.toLocaleString('it-IT')} punti per ${level.nextName}`
                 : 'Livello massimo raggiunto!';
 
-            // Load rewards
             const rewardsSnap = await db.collection(`merchants/${merchantId}/rewards`)
                 .where('active', '==', true)
                 .orderBy('pointsCost')
                 .get();
 
-            if (!rewardsSnap.empty) {
-                const container = document.getElementById('card-rewards');
+            const container = document.getElementById('card-rewards');
+            if (rewardsSnap.empty) {
+                container.innerHTML = '<div class="reward-item"><div class="reward-info"><h4>Nessun premio</h4><p>Torna presto: stiamo aggiungendo i premi.</p></div></div>';
+            } else {
                 container.innerHTML = '';
                 rewardsSnap.forEach(doc => {
                     const r = doc.data();
                     const canRedeem = points >= r.pointsCost;
-                    container.innerHTML += `
-                        <div class="reward-item">
-                            <div class="reward-info">
-                                <h4>${r.name}</h4>
-                                <p>${r.pointsCost.toLocaleString('it-IT')} punti</p>
-                            </div>
-                            <button class="reward-btn ${canRedeem ? 'available' : 'locked'}">
-                                ${canRedeem ? 'Riscatta' : r.pointsCost + ' pts'}
-                            </button>
+                    const item = document.createElement('div');
+                    item.className = 'reward-item';
+                    item.innerHTML = `
+                        <div class="reward-info">
+                            <h4></h4>
+                            <p></p>
                         </div>
+                        <button class="reward-btn ${canRedeem ? 'available' : 'locked'}" ${canRedeem ? '' : 'disabled'}>
+                            ${canRedeem ? 'Riscatta' : r.pointsCost + ' pts'}
+                        </button>
                     `;
+                    item.querySelector('h4').textContent = r.name || '';
+                    item.querySelector('p').textContent = (r.pointsCost || 0).toLocaleString('it-IT') + ' punti';
+                    if (canRedeem) {
+                        item.querySelector('button').addEventListener('click', () => onRedeemClick(doc.id, r));
+                    }
+                    container.appendChild(item);
                 });
             }
 
-            // Load transactions
             const transSnap = await db.collection(`merchants/${merchantId}/transactions`)
-                .where('customerId', '==', customerId)
+                .where('customerId', '==', cid)
                 .orderBy('createdAt', 'desc')
                 .limit(10)
                 .get();
 
             if (!transSnap.empty) {
-                const container = document.getElementById('card-transactions');
-                container.innerHTML = '';
+                const tc = document.getElementById('card-transactions');
+                tc.innerHTML = '';
                 transSnap.forEach(doc => {
                     const t = doc.data();
                     const date = t.createdAt ? t.createdAt.toDate().toLocaleDateString('it-IT') : '';
-                    container.innerHTML += `
-                        <div class="transaction-item">
-                            <div class="transaction-info">
-                                <h4>${t.type === 'earn' ? 'Acquisto' : 'Riscatto premio'}</h4>
-                                <p>${date}</p>
-                            </div>
-                            <span class="transaction-points">${t.type === 'earn' ? '+' : '-'}${t.points}</span>
+                    const item = document.createElement('div');
+                    item.className = 'transaction-item';
+                    item.innerHTML = `
+                        <div class="transaction-info">
+                            <h4></h4>
+                            <p></p>
                         </div>
+                        <span class="transaction-points">${t.type === 'earn' ? '+' : '-'}${t.points}</span>
                     `;
+                    item.querySelector('h4').textContent = t.type === 'earn' ? 'Acquisto' : (t.rewardName || 'Riscatto premio');
+                    item.querySelector('p').textContent = date;
+                    tc.appendChild(item);
                 });
             }
         }
+
+        async function onRedeemClick(rewardId, reward) {
+            var brand = window.__hostBrands[location.hostname];
+            var merchantSlug = (brand && brand.merchantSlug) || merchantId;
+            var cid = customerIdParam || getStoredCustomerId();
+            if (!cid) return;
+            if (!confirm(`Riscatti "${reward.name}" per ${reward.pointsCost} punti?`)) return;
+
+            try {
+                var resp = await fetch(API_BASE + '/generateRedeemCode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ merchant: merchantSlug, customerId: cid, rewardId }),
+                });
+                var data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data.ok) throw new Error(data.error || 'Errore');
+                showRedeemModal(data.code, data.expiresAt, data.rewardName, data.pointsCost);
+            } catch (ex) {
+                alert(ex.message || 'Errore');
+            }
+        }
+
+        let _redeemTimerId = null;
+        function showRedeemModal(code, expiresAtMs, rewardName, pointsCost) {
+            var modal = document.getElementById('redeem-modal');
+            document.getElementById('redeem-code').textContent = code;
+            document.getElementById('redeem-reward-name').textContent = rewardName || 'Premio';
+            document.getElementById('redeem-cost').innerHTML = 'Costo: <strong>' + pointsCost + ' punti</strong>';
+            modal.style.display = 'flex';
+
+            function tick() {
+                var remaining = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+                var m = Math.floor(remaining / 60);
+                var s = remaining % 60;
+                document.getElementById('redeem-timer').textContent = m + ':' + String(s).padStart(2, '0');
+                if (remaining <= 0) {
+                    document.getElementById('redeem-countdown').innerHTML = '<span style="color:#c00;">Codice scaduto — riprova</span>';
+                    if (_redeemTimerId) clearInterval(_redeemTimerId);
+                }
+            }
+            tick();
+            if (_redeemTimerId) clearInterval(_redeemTimerId);
+            _redeemTimerId = setInterval(tick, 1000);
+        }
+        document.getElementById('redeem-close').addEventListener('click', () => {
+            document.getElementById('redeem-modal').style.display = 'none';
+            if (_redeemTimerId) clearInterval(_redeemTimerId);
+            // Ricarica per aggiornare punti e storico
+            loadCard();
+        });
 
         function applyBranding(merchant) {
             const WHITELABEL_PLANS = ['pro', 'business'];
@@ -486,32 +513,6 @@
             return '#' + [adj(r), adj(g), adj(b)].map(x => x.toString(16).padStart(2, '0')).join('');
         }
 
-        function renderQrCode(text) {
-            try {
-                const container = document.getElementById('card-qr');
-                const section = document.getElementById('card-qr-section');
-                if (!container || !section || typeof qrcode === 'undefined') return;
-                const qr = qrcode(0, 'M');
-                qr.addData(String(text));
-                qr.make();
-                container.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1, scalable: true });
-                const svg = container.querySelector('svg');
-                if (svg) {
-                    svg.style.width = '180px';
-                    svg.style.height = '180px';
-                }
-                // Mostra il customerId leggibile sotto il QR — utile alla cassa
-                // se lo scanner non è disponibile.
-                const label = document.createElement('div');
-                label.style.cssText = 'font-family:monospace;font-size:13px;color:#666;letter-spacing:1px;';
-                label.textContent = text;
-                container.parentElement.insertBefore(label, container.parentElement.querySelector('p'));
-                section.style.display = 'block';
-            } catch (e) {
-                console.warn('QR render failed', e);
-            }
-        }
-
         function setupInstallBanner() {
             const banner = document.getElementById('install-banner');
             const btn = document.getElementById('install-btn');
@@ -520,11 +521,8 @@
             const sub = document.getElementById('install-sub');
             if (!banner) return;
 
-            // Già installato? (display-mode standalone su Android o navigator.standalone su iOS)
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
             if (isStandalone) return;
-
-            // Già dismesso in questa sessione?
             if (sessionStorage.getItem('installBannerDismissed') === '1') return;
 
             closeBtn?.addEventListener('click', () => {
@@ -532,7 +530,6 @@
                 sessionStorage.setItem('installBannerDismissed', '1');
             });
 
-            // Android: aspetta beforeinstallprompt
             let deferredPrompt = null;
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
@@ -549,7 +546,6 @@
                 }
             });
 
-            // iOS Safari: no beforeinstallprompt → mostra istruzioni manuali
             const ua = window.navigator.userAgent;
             const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
             const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
@@ -557,7 +553,6 @@
                 text.textContent = 'Aggiungi alla schermata Home';
                 sub.textContent = 'Tocca ⬆️ Condividi → "Aggiungi alla schermata Home"';
                 btn.style.display = 'none';
-                // Mostra dopo 1.5s per non disturbare il caricamento iniziale
                 setTimeout(() => { banner.style.display = 'block'; }, 1500);
             }
         }
@@ -597,39 +592,15 @@
             document.getElementById('card-level').textContent = 'Silver ⭐';
             document.getElementById('card-progress-fill').style.width = '83%';
             document.getElementById('card-progress-text').textContent = '1.250 / 1.500 punti per Gold';
-
             document.getElementById('card-rewards').innerHTML = `
-                <div class="reward-item">
-                    <div class="reward-info"><h4>Caffè omaggio</h4><p>100 punti</p></div>
-                    <button class="reward-btn available">Riscatta</button>
-                </div>
-                <div class="reward-item">
-                    <div class="reward-info"><h4>Sconto 10%</h4><p>500 punti</p></div>
-                    <button class="reward-btn available">Riscatta</button>
-                </div>
-                <div class="reward-item">
-                    <div class="reward-info"><h4>Prodotto gratis</h4><p>1.000 punti</p></div>
-                    <button class="reward-btn available">Riscatta</button>
-                </div>
+                <div class="reward-item"><div class="reward-info"><h4>Caffè omaggio</h4><p>100 punti</p></div><button class="reward-btn available">Riscatta</button></div>
+                <div class="reward-item"><div class="reward-info"><h4>Sconto 10%</h4><p>500 punti</p></div><button class="reward-btn available">Riscatta</button></div>
+                <div class="reward-item"><div class="reward-info"><h4>Prodotto gratis</h4><p>1.000 punti</p></div><button class="reward-btn available">Riscatta</button></div>
             `;
-
             document.getElementById('card-transactions').innerHTML = `
-                <div class="transaction-item">
-                    <div class="transaction-info"><h4>Acquisto</h4><p>12/04/2026</p></div>
-                    <span class="transaction-points">+25</span>
-                </div>
-                <div class="transaction-item">
-                    <div class="transaction-info"><h4>Acquisto</h4><p>10/04/2026</p></div>
-                    <span class="transaction-points">+18</span>
-                </div>
-                <div class="transaction-item">
-                    <div class="transaction-info"><h4>Riscatto premio</h4><p>08/04/2026</p></div>
-                    <span class="transaction-points">-100</span>
-                </div>
-                <div class="transaction-item">
-                    <div class="transaction-info"><h4>Acquisto</h4><p>05/04/2026</p></div>
-                    <span class="transaction-points">+32</span>
-                </div>
+                <div class="transaction-item"><div class="transaction-info"><h4>Acquisto</h4><p>12/04/2026</p></div><span class="transaction-points">+25</span></div>
+                <div class="transaction-item"><div class="transaction-info"><h4>Acquisto</h4><p>10/04/2026</p></div><span class="transaction-points">+18</span></div>
+                <div class="transaction-item"><div class="transaction-info"><h4>Riscatto premio</h4><p>08/04/2026</p></div><span class="transaction-points">-100</span></div>
             `;
         }
 
@@ -637,7 +608,6 @@
         setupInstallBanner();
     </script>
 
-    <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js')
