@@ -30,9 +30,9 @@ async function loadKPIs() {
         todayPoints += doc.data().points || 0;
     });
 
-    // Premi riscattati
+    // Premi riscattati ('redeem' dal bridge/codice 4 cifre, 'reward_redeemed' legacy)
     const rewardsSnap = await db.collection(`merchants/${mid}/transactions`)
-        .where('type', '==', 'reward_redeemed')
+        .where('type', 'in', ['redeem', 'reward_redeemed'])
         .get();
     const totalRewards = rewardsSnap.size;
 
