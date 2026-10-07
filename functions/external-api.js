@@ -64,6 +64,48 @@ function isValidEmail(raw) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
+const PENDING_DAYS = 30;
+
+// Carica come earn i lavaggi pagati prima dell'attivazione (pendingEarns degli ultimi PENDING_DAYS),
+// con refId idempotente, poi li cancella. Ritorna i punti caricati.
+async function creditPendingEarns(merchantId, cid) {
+    const db = getDb();
+    const pend = await db.collection(`merchants/${merchantId}/pendingEarns`).where("customerId", "==", cid).get();
+    if (pend.empty) return 0;
+    const merchantSnap = await db.doc(`merchants/${merchantId}`).get();
+    const pointsPerEuro = merchantSnap.exists ? (merchantSnap.data().loyaltyConfig?.pointsPerEuro ?? 1) : 1;
+    const limite = Date.now() - PENDING_DAYS * 864e5;
+    const customerRef = db.doc(`merchants/${merchantId}/customers/${cid}`);
+    const transCol = db.collection(`merchants/${merchantId}/transactions`);
+    let tot = 0;
+    for (const p of pend.docs) {
+        const d = p.data();
+        const ts = d.createdAt?.toMillis ? d.createdAt.toMillis() : 0;
+        if (ts && ts < limite) { await p.ref.delete(); continue; }
+        if (d.refId) {
+            const dup = await transCol.where("refId", "==", d.refId).where("type", "==", "earn").limit(1).get();
+            if (!dup.empty) { await p.ref.delete(); continue; }
+        }
+        const points = Math.round(Number(d.amount || 0) * pointsPerEuro);
+        if (points <= 0) { await p.ref.delete(); continue; }
+        await db.runTransaction(async (tx) => {
+            const c = (await tx.get(customerRef)).data() || {};
+            tx.set(transCol.doc(), {
+                customerId: cid, customerName: c.name || "", amount: Number(d.amount), points, type: "earn",
+                sedeId: d.sedeId || null, refId: d.refId || null, notes: d.notes || null,
+                createdAt: FieldValue().serverTimestamp(), source: "pending-on-activation",
+            });
+            tx.update(customerRef, {
+                totalPoints: (c.totalPoints || 0) + points, visits: (c.visits || 0) + 1,
+                lastVisit: FieldValue().serverTimestamp(), updatedAt: FieldValue().serverTimestamp(),
+            });
+            tx.delete(p.ref);
+        });
+        tot += points;
+    }
+    return tot;
+}
+
 function badRequest(res, msg) { res.status(400).json({ ok: false, error: msg }); }
 function unauthorized(res) { res.status(401).json({ ok: false, error: "unauthorized" }); }
 function serverError(res, err) {
@@ -177,11 +219,20 @@ exports.externalRecordTransaction = onRequest(baseOpts, async (req, res) => {
         const transCol = db.collection(`merchants/${merchantId}/transactions`);
 
         const cSnap = await customerRef.get();
-        if (!cSnap.exists) {
-            return res.json({ ok: true, skipped: "customer-not-found", customerId: cid });
-        }
-        if (cSnap.data().cardAttivata !== true) {
-            return res.json({ ok: true, skipped: "card-not-active", customerId: cid });
+        const nonAttiva = !cSnap.exists ? "customer-not-found" : (cSnap.data().cardAttivata !== true ? "card-not-active" : null);
+        if (nonAttiva) {
+            // Punti in sospeso (Wash Hub, 07/10/2026): il cliente riceve il link della card subito dopo
+            // il pagamento; se la attiva entro PENDING_DAYS gli carichiamo i punti di quel lavaggio.
+            // Solo "earn"; nessun customer creato qui (l'adesione resta del cliente).
+            let pendingSaved = false;
+            if (type === "earn" && refId && amt > 0) {
+                await db.doc(`merchants/${merchantId}/pendingEarns/${String(refId).replace(/\//g, "_")}`).set({
+                    customerId: cid, amount: amt, sedeId: sedeId || null, refId, notes: notes || null,
+                    createdAt: FieldValue().serverTimestamp(),
+                }, { merge: true });
+                pendingSaved = true;
+            }
+            return res.json({ ok: true, skipped: nonAttiva, customerId: cid, pendingSaved });
         }
 
         if (refId) {
@@ -392,7 +443,10 @@ exports.selfActivateCard = onRequest(publicOpts, async (req, res) => {
         payload.source = "self-activation";
 
         await ref.set(payload, { merge: true });
-        res.json({ ok: true, merchantId, customerId: cid, created: !snap.exists });
+        let pendingCredited = 0;
+        try { pendingCredited = await creditPendingEarns(merchantId, cid); }
+        catch (e) { console.error("[selfActivateCard] pending earns", cid, e); }
+        res.json({ ok: true, merchantId, customerId: cid, created: !snap.exists, pendingCredited });
     } catch (err) {
         serverError(res, err);
     }
@@ -485,4 +539,59 @@ exports.generateRedeemCode = onRequest(publicOpts, async (req, res) => {
     } catch (err) {
         serverError(res, err);
     }
+});
+
+
+/**
+ * POST externalGetLoyalty — { merchant }
+ * → { pointsPerEuro, levels, rewards: [{id, name, description, pointsCost, active}], carteAttive }
+ * POST externalSetLoyalty — { merchant, pointsPerEuro?, rewards?: [{id?, name, description, pointsCost, active, delete?}] }
+ * Usati dalla pagina FidelAI del gestionale Wash Hub (proxy dashdebug fidelaiLoyalty, solo admin).
+ */
+exports.externalGetLoyalty = onRequest(baseOpts, async (req, res) => {
+    try {
+        if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
+        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
+        const merchantId = await resolveMerchantId((req.body || {}).merchant);
+        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const db = getDb();
+        const m = (await db.doc(`merchants/${merchantId}`).get()).data() || {};
+        const rw = await db.collection(`merchants/${merchantId}/rewards`).get();
+        const rewards = rw.docs.map((d) => ({ id: d.id, name: d.data().name || "", description: d.data().description || "",
+            pointsCost: d.data().pointsCost || 0, active: d.data().active !== false })).sort((a, b) => a.pointsCost - b.pointsCost);
+        const attive = await db.collection(`merchants/${merchantId}/customers`).where("cardAttivata", "==", true).count().get();
+        const pend = await db.collection(`merchants/${merchantId}/pendingEarns`).count().get();
+        res.json({ ok: true, pointsPerEuro: m.loyaltyConfig?.pointsPerEuro ?? 1, levels: m.loyaltyConfig?.levels || [],
+            rewards, carteAttive: attive.data().count, lavaggiInSospeso: pend.data().count, pendingDays: PENDING_DAYS });
+    } catch (err) { serverError(res, err); }
+});
+
+exports.externalSetLoyalty = onRequest(baseOpts, async (req, res) => {
+    try {
+        if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
+        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
+        const { merchant, pointsPerEuro, rewards } = req.body || {};
+        const merchantId = await resolveMerchantId(merchant);
+        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const db = getDb();
+        if (pointsPerEuro !== undefined) {
+            const v = Number(pointsPerEuro);
+            if (!Number.isFinite(v) || v < 0 || v > 100) return badRequest(res, "punti per euro non validi");
+            await db.doc(`merchants/${merchantId}`).set({ loyaltyConfig: { pointsPerEuro: v } }, { merge: true });
+        }
+        if (Array.isArray(rewards)) {
+            const col = db.collection(`merchants/${merchantId}/rewards`);
+            for (const r of rewards.slice(0, 50)) {
+                if (r.delete && r.id) { await col.doc(String(r.id)).delete(); continue; }
+                const name = String(r.name || "").trim().slice(0, 80);
+                const cost = Math.round(Number(r.pointsCost));
+                if (!name || !Number.isFinite(cost) || cost <= 0) return badRequest(res, `premio non valido: ${name || "(senza nome)"}`);
+                const data = { name, description: String(r.description || "").trim().slice(0, 200), pointsCost: cost,
+                    active: r.active !== false, updatedAt: FieldValue().serverTimestamp() };
+                if (r.id) await col.doc(String(r.id)).set(data, { merge: true });
+                else await col.add({ ...data, createdAt: FieldValue().serverTimestamp() });
+            }
+        }
+        res.json({ ok: true });
+    } catch (err) { serverError(res, err); }
 });
