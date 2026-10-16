@@ -403,8 +403,7 @@ exports.selfActivateCard = onRequest(publicOpts, async (req, res) => {
         const cleanEmail = String(email || "").trim().toLowerCase();
         if (!isValidEmail(cleanEmail)) return badRequest(res, "Email non valida");
         if (consentPrivacy !== true) return badRequest(res, "Consenso privacy obbligatorio");
-        if (consentSms !== true) return badRequest(res, "Consenso SMS obbligatorio");
-        if (consentEmail !== true) return badRequest(res, "Consenso email obbligatorio");
+        // Marketing SMS/email: FACOLTATIVI (GDPR, consenso libero — 16/10/2026). Obbligatoria solo la privacy.
 
         const ref = getDb().doc(`merchants/${merchantId}/customers/${cid}`);
         const snap = await ref.get();
@@ -412,8 +411,8 @@ exports.selfActivateCard = onRequest(publicOpts, async (req, res) => {
 
         const consents = {
             consensoPrivacy: { accepted: true, at: now, version: CONSENT_PRIVACY_VERSION },
-            consensoSMS: { accepted: true, at: now },
-            consensoEmail: { accepted: true, at: now },
+            consensoSMS: { accepted: consentSms === true, at: now },
+            consensoEmail: { accepted: consentEmail === true, at: now },
         };
 
         if (snap.exists && snap.data().cardAttivata === true) {

@@ -148,16 +148,16 @@
 
                         <div style="background:rgba(0,0,0,0.18);border-radius:12px;padding:14px;margin-bottom:14px;">
                             <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;margin-bottom:10px;">
-                                <input type="checkbox" id="act-consent-privacy" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
+                                <input type="checkbox" id="act-consent-privacy" required style="margin-top:3px;width:22px;height:22px;flex-shrink:0;accent-color:#111;background:#fff;">
                                 <span>Ho letto e accetto l'<a href="/privacy.html" target="_blank" style="color:#fff;text-decoration:underline;">informativa privacy</a> *</span>
                             </label>
                             <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;margin-bottom:10px;">
-                                <input type="checkbox" id="act-consent-sms" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
-                                <span>Acconsento a ricevere SMS con promozioni e reminder *</span>
+                                <input type="checkbox" id="act-consent-sms" style="margin-top:3px;width:22px;height:22px;flex-shrink:0;accent-color:#111;background:#fff;">
+                                <span>Acconsento a ricevere SMS con promozioni e reminder <span style="opacity:.7">(facoltativo)</span></span>
                             </label>
                             <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;">
-                                <input type="checkbox" id="act-consent-email" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:#fff;">
-                                <span>Acconsento a ricevere email con promozioni e novità *</span>
+                                <input type="checkbox" id="act-consent-email" style="margin-top:3px;width:22px;height:22px;flex-shrink:0;accent-color:#111;background:#fff;">
+                                <span>Acconsento a ricevere email con promozioni e novità <span style="opacity:.7">(facoltativo)</span></span>
                             </label>
                         </div>
 
@@ -289,7 +289,7 @@
                     if (name.length < 2) throw new Error('Inserisci nome e cognome');
                     if (phone.length < 9 || phone.length > 11) throw new Error('Numero di cellulare non valido');
                     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email non valida');
-                    if (!cPrivacy || !cSms || !cEmail) throw new Error('Tutti i consensi sono obbligatori');
+                    if (!cPrivacy) throw new Error('Per attivare la card serve il consenso privacy');
 
                     var resp = await fetch(API_BASE + '/selfActivateCard', {
                         method: 'POST',
