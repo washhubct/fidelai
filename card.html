@@ -364,17 +364,19 @@
                 ? `${points.toLocaleString('it-IT')} / ${level.next.toLocaleString('it-IT')} punti per ${level.nextName}`
                 : 'Livello massimo raggiunto!';
 
+            // Ordinamento lato client: active+orderBy(pointsCost) richiedeva un indice composito
+            // mai creato → la query falliva e i premi non comparivano (26/10/2026)
             const rewardsSnap = await db.collection(`merchants/${merchantId}/rewards`)
                 .where('active', '==', true)
-                .orderBy('pointsCost')
                 .get();
+            const rewardsDocs = rewardsSnap.docs.sort((a, b) => (a.data().pointsCost || 0) - (b.data().pointsCost || 0));
 
             const container = document.getElementById('card-rewards');
             if (rewardsSnap.empty) {
                 container.innerHTML = '<div class="reward-item"><div class="reward-info"><h4>Nessun premio</h4><p>Torna presto: stiamo aggiungendo i premi.</p></div></div>';
             } else {
                 container.innerHTML = '';
-                rewardsSnap.forEach(doc => {
+                rewardsDocs.forEach(doc => {
                     const r = doc.data();
                     const canRedeem = points >= r.pointsCost;
                     const item = document.createElement('div');
