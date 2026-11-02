@@ -1,0 +1,1 @@
+- [WashHub tenant FidelAI](washhub-tenant-fidelai.md) — account operatore info@parkinglungomare.it, card.washhub.it per NFC, lancio 27/7

@@ -1,0 +1,278 @@
+{
+  "firebase.json": {
+    "mtime": 1781884032.0,
+    "seen": 1793657615.396519,
+    "ast_hash": "66b1bfb46dfdee5484d4f4876360507f",
+    "semantic_hash": "66b1bfb46dfdee5484d4f4876360507f"
+  },
+  "firestore.indexes.json": {
+    "mtime": 1781709811.0,
+    "seen": 1793657615.396522,
+    "ast_hash": "bf35ed6aa121c6cd8eb21041d0246d84",
+    "semantic_hash": "bf35ed6aa121c6cd8eb21041d0246d84"
+  },
+  "functions/external-api.js": {
+    "mtime": 1792159947.396741,
+    "seen": 1793657615.396523,
+    "ast_hash": "58c11eff2ed45bcd0f067df28e9ad9df",
+    "semantic_hash": "58c11eff2ed45bcd0f067df28e9ad9df"
+  },
+  "functions/index.js": {
+    "mtime": 1781636138.0,
+    "seen": 1793657615.396524,
+    "ast_hash": "e1e63805663103a11ab1c0100b0e1ee9",
+    "semantic_hash": "e1e63805663103a11ab1c0100b0e1ee9"
+  },
+  "functions/package.json": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396524,
+    "ast_hash": "4bffbaa8b6b2dc431159849b3ff0c977",
+    "semantic_hash": "4bffbaa8b6b2dc431159849b3ff0c977"
+  },
+  "js/firebase-config.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965251,
+    "ast_hash": "1a1c3de4ede667c4092079a6ccb9f911",
+    "semantic_hash": "1a1c3de4ede667c4092079a6ccb9f911"
+  },
+  "js/moduli/ai-agent.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965251,
+    "ast_hash": "af0e22834262c9865c5fa6cd72e8b97f",
+    "semantic_hash": "af0e22834262c9865c5fa6cd72e8b97f"
+  },
+  "js/moduli/analytics.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396526,
+    "ast_hash": "095b1cea06aebebfd49b2f3e3c5ac165",
+    "semantic_hash": "095b1cea06aebebfd49b2f3e3c5ac165"
+  },
+  "js/moduli/auth.js": {
+    "mtime": 1781884468.0,
+    "seen": 1793657615.396526,
+    "ast_hash": "c7e17fd0473aa79ed97611b16499cf23",
+    "semantic_hash": "c7e17fd0473aa79ed97611b16499cf23"
+  },
+  "js/moduli/campagne.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396526,
+    "ast_hash": "cb448944c4a55b0a80bc9ca22e9cb816",
+    "semantic_hash": "cb448944c4a55b0a80bc9ca22e9cb816"
+  },
+  "js/moduli/clienti.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396527,
+    "ast_hash": "f7540b11ad429e19d3ed22d15069d040",
+    "semantic_hash": "f7540b11ad429e19d3ed22d15069d040"
+  },
+  "js/moduli/home.js": {
+    "mtime": 1785022905.0,
+    "seen": 1793657615.396527,
+    "ast_hash": "b37e65dd04fe08605a29b5234a201cdf",
+    "semantic_hash": "b37e65dd04fe08605a29b5234a201cdf"
+  },
+  "js/moduli/impostazioni.js": {
+    "mtime": 1781883564.0,
+    "seen": 1793657615.3965282,
+    "ast_hash": "9d88e13c7923f9ee3fab5ce841408fcd",
+    "semantic_hash": "9d88e13c7923f9ee3fab5ce841408fcd"
+  },
+  "js/moduli/loyalty.js": {
+    "mtime": 1781884865.0,
+    "seen": 1793657615.3965282,
+    "ast_hash": "c0147308c2fdae0fec86350789370bd8",
+    "semantic_hash": "c0147308c2fdae0fec86350789370bd8"
+  },
+  "js/moduli/navigazione.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396529,
+    "ast_hash": "d22d53c9a42eed91a124cd830e8bef8f",
+    "semantic_hash": "d22d53c9a42eed91a124cd830e8bef8f"
+  },
+  "js/moduli/onboarding.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396529,
+    "ast_hash": "6f8ec51b68ac7c47b957d43775cf3b86",
+    "semantic_hash": "6f8ec51b68ac7c47b957d43775cf3b86"
+  },
+  "js/moduli/transazioni.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396529,
+    "ast_hash": "483ea71781c1443aa74e5a36310b329b",
+    "semantic_hash": "483ea71781c1443aa74e5a36310b329b"
+  },
+  "js/state.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.39653,
+    "ast_hash": "87a36060817cae769b5cf657ecc1642c",
+    "semantic_hash": "87a36060817cae769b5cf657ecc1642c"
+  },
+  "js/utils.js": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.39653,
+    "ast_hash": "e1c3e35cf29832ba8380107e8e920978",
+    "semantic_hash": "e1c3e35cf29832ba8380107e8e920978"
+  },
+  "manifest-washhub.json": {
+    "mtime": 1781881995.0,
+    "seen": 1793657615.3965309,
+    "ast_hash": "da6a70b274a438dbf2284c4f3582bb6a",
+    "semantic_hash": "da6a70b274a438dbf2284c4f3582bb6a"
+  },
+  "manifest.json": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965309,
+    "ast_hash": "7d9e60a2b0dbedcfefde6aeae7977b6b",
+    "semantic_hash": "7d9e60a2b0dbedcfefde6aeae7977b6b"
+  },
+  "scripts/cleanup-washhub.js": {
+    "mtime": 1782751653.0,
+    "seen": 1793657615.396532,
+    "ast_hash": "0c9d672c51d6f5468d884c3b337047c6",
+    "semantic_hash": "0c9d672c51d6f5468d884c3b337047c6"
+  },
+  "scripts/deploy-hosting.js": {
+    "mtime": 1785096442.0,
+    "seen": 1793657615.396532,
+    "ast_hash": "207b0afce471c660d38b7aebb94cf3c0",
+    "semantic_hash": "207b0afce471c660d38b7aebb94cf3c0"
+  },
+  "scripts/reset-washhub-password.js": {
+    "mtime": 1785022956.0,
+    "seen": 1793657615.396533,
+    "ast_hash": "c57cf17e3ad997ccc359195a7498819e",
+    "semantic_hash": "c57cf17e3ad997ccc359195a7498819e"
+  },
+  "scripts/setup-washhub-merchant.js": {
+    "mtime": 1781635844.0,
+    "seen": 1793657615.396533,
+    "ast_hash": "7cceda25e1b2d62a5b524a330ee58b18",
+    "semantic_hash": "7cceda25e1b2d62a5b524a330ee58b18"
+  },
+  "sw.js": {
+    "mtime": 1793021681.9368525,
+    "seen": 1793657615.396534,
+    "ast_hash": "8bc486629913395faa606c4d43f58843",
+    "semantic_hash": "8bc486629913395faa606c4d43f58843"
+  },
+  "404.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396534,
+    "ast_hash": "c2509c102c19b8fdc18e64838651aa98",
+    "semantic_hash": "c2509c102c19b8fdc18e64838651aa98"
+  },
+  "BRAIN.md": {
+    "mtime": 1793657019.8858538,
+    "seen": 1793657615.3965352,
+    "ast_hash": "701831b4075960dbee74a1d28b2cd8ab",
+    "semantic_hash": "701831b4075960dbee74a1d28b2cd8ab"
+  },
+  "admin.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965352,
+    "ast_hash": "8de772b2b5949028119793c459d223a8",
+    "semantic_hash": "8de772b2b5949028119793c459d223a8"
+  },
+  "api.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965352,
+    "ast_hash": "97d2a3fa05f2192cd2d6734ef2214fe1",
+    "semantic_hash": "97d2a3fa05f2192cd2d6734ef2214fe1"
+  },
+  "blog.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396536,
+    "ast_hash": "d6e1a7308fde1a26ca12ebeb208ab535",
+    "semantic_hash": "d6e1a7308fde1a26ca12ebeb208ab535"
+  },
+  "card.html": {
+    "mtime": 1793016256.4076934,
+    "seen": 1793657615.396536,
+    "ast_hash": "4adc515badce4a67e4c8bb3d4a2a31be",
+    "semantic_hash": "4adc515badce4a67e4c8bb3d4a2a31be"
+  },
+  "changelog.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396537,
+    "ast_hash": "200e122896a2a69f82bc6b5814eb53c6",
+    "semantic_hash": "200e122896a2a69f82bc6b5814eb53c6"
+  },
+  "chi-siamo.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396537,
+    "ast_hash": "b5490cb62ab92ce9d5d5f70e6eee27e7",
+    "semantic_hash": "b5490cb62ab92ce9d5d5f70e6eee27e7"
+  },
+  "contatti.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396537,
+    "ast_hash": "b7f47a35414c97a90c897f420d201094",
+    "semantic_hash": "b7f47a35414c97a90c897f420d201094"
+  },
+  "dashboard.html": {
+    "mtime": 1781884867.0,
+    "seen": 1793657615.396538,
+    "ast_hash": "6d725bd768735379fb02e5abc21bf437",
+    "semantic_hash": "6d725bd768735379fb02e5abc21bf437"
+  },
+  "docs.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.396538,
+    "ast_hash": "01f9e2eba178dbca6e0d8a9f92d8f866",
+    "semantic_hash": "01f9e2eba178dbca6e0d8a9f92d8f866"
+  },
+  "index.html": {
+    "mtime": 1781885468.0,
+    "seen": 1793657615.396539,
+    "ast_hash": "a96c7aef7cd1f78725c3b8be7173ec92",
+    "semantic_hash": "a96c7aef7cd1f78725c3b8be7173ec92"
+  },
+  "memory/_archive/MEMORY.md": {
+    "mtime": 1793657019.8930867,
+    "seen": 1793657615.396539,
+    "ast_hash": "2b08c12674051a17553e46b2b4aef49d",
+    "semantic_hash": "2b08c12674051a17553e46b2b4aef49d"
+  },
+  "memory/_archive/washhub-tenant-fidelai.md": {
+    "mtime": 1785023020.4436378,
+    "seen": 1793657615.39654,
+    "ast_hash": "b741c709fcb1cbdcbc9773ea36984eed",
+    "semantic_hash": "b741c709fcb1cbdcbc9773ea36984eed"
+  },
+  "privacy.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.39654,
+    "ast_hash": "31f187367f386699c81a9ad6f2b0006a",
+    "semantic_hash": "31f187367f386699c81a9ad6f2b0006a"
+  },
+  "terms.html": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.39654,
+    "ast_hash": "71fa53e1c467d5945b07bea3581daf53",
+    "semantic_hash": "71fa53e1c467d5945b07bea3581daf53"
+  },
+  "brand/logo-autolavaggi-scontornato.png": {
+    "mtime": 1781881971.0,
+    "seen": 1793657615.3965409,
+    "ast_hash": "a97d94aadf1d7bf3fe306f0633044827",
+    "semantic_hash": "a97d94aadf1d7bf3fe306f0633044827"
+  },
+  "icon-192.svg": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965409,
+    "ast_hash": "7167c496cc91a7daf42fa8460a88aa08",
+    "semantic_hash": "7167c496cc91a7daf42fa8460a88aa08"
+  },
+  "icon-512.svg": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965418,
+    "ast_hash": "ddf1ab7f2f994977e1652542c2b3d9bc",
+    "semantic_hash": "ddf1ab7f2f994977e1652542c2b3d9bc"
+  },
+  "og-image.svg": {
+    "mtime": 1776705779.0,
+    "seen": 1793657615.3965418,
+    "ast_hash": "54ce2a1c12b81629d9409f2d2a29ecd5",
+    "semantic_hash": "54ce2a1c12b81629d9409f2d2a29ecd5"
+  }
+}

@@ -1,0 +1,117 @@
+# CLAUDE.md — FidelAI
+
+> Contesto specifico. Convenzioni trasversali in `~/.claude/CLAUDE.md`.
+
+---
+
+## Cos'è
+
+**FidelAI** — **SaaS** loyalty + CRM + dashboard operativa per piccole e medie attività locali (ristoranti, bar, centri estetici, autolavaggi, negozi).
+
+Ispirazione negativa: ShopFan (loyalty italiana con UX povera). FidelAI vuole essere l'alternativa moderna con **AI integrata** per insight automatici.
+
+## Status attuale
+
+🟡 **In sviluppo attivo** — già ha landing con **white label** e **demo card brandizzata**. Ha deploy su GitHub Pages.
+
+- **URL attuale:** https://washhubct.github.io/fidelai/
+- **Repo:** `washhubct/fidelai` (nome sistemato da `fideliai` → `fidelai`)
+- **Hosting:** GitHub Pages (no custom domain ancora — da acquistare `fidelai.it` o simile)
+
+## Visione di prodotto
+
+Piattaforma che il commerciante locale usa per:
+
+1. **Loyalty** — carte fedeltà digitali, punti, premi, campagne
+2. **CRM clienti** — anagrafica, storico acquisti, segmentazione
+3. **Dashboard operativa** — KPI giornalieri (incassi, scontrino medio, clienti nuovi vs ricorrenti)
+4. **AI insights** — suggerimenti automatici ("questa settimana hai perso 12 clienti abituali, invia una promo?")
+
+Il cliente finale (negoziante) non vuole "un altro software". Vuole **uno strumento che gli dica cosa fare**.
+
+## Stack tecnico
+
+- **Backend:** Firebase (Firestore, Auth multi-tenant, Functions per cron AI)
+- **Frontend:** vanilla JS ES6 (coerente con altri progetti del portfolio)
+- **AI layer:** API Anthropic (Claude) per generare insights automatici sui dati del cliente
+- **Pagamenti:** Stripe (abbonamenti mensili)
+- **Hosting:** GitHub Pages per ora, da valutare Firebase Hosting quando si va live commerciale
+
+## Pricing
+
+| Piano | Prezzo | Target |
+|---|---|---|
+| **Starter** | €19/mese | Attività singola, base loyalty |
+| **Pro** | €39/mese | + CRM, + dashboard avanzata |
+| **Business** | €69/mese | + AI insights, multi-sede, API |
+
+## Roadmap fasi
+
+### Fase 1 — MVP loyalty (in corso)
+- ✅ Landing white label
+- ✅ Demo card brandizzata
+- Multi-tenant base (un merchant = un account)
+- Anagrafica clienti + carta digitale QR
+- Accumulo punti + premi
+- Dashboard base
+
+### Fase 2 — CRM
+- Segmentazione clienti (nuovi / ricorrenti / dormienti)
+- Storico acquisti dettagliato
+- Export CSV
+
+### Fase 3 — Dashboard operativa
+- KPI real-time
+- Grafici incassi / scontrino medio / frequenza
+- Confronto periodi
+
+### Fase 4 — AI insights
+- Claude API per report settimanali in linguaggio naturale
+- Alert automatici anomalie
+- Suggerimenti campagne
+
+## Architettura multi-tenant
+
+**Modello scelto (pare):** progetto Firebase condiviso + root collection `tenants/{tenantId}/...` per isolamento logico.
+
+Vantaggi:
+- Un solo Firebase project da gestire
+- Rules stringenti per isolamento sicuro
+- Costi prevedibili
+
+## Integrazione con gestionali esistenti
+
+**Idea strategica:** il gestionale Wash Hub diventa una **feature premium** di FidelAI:
+
+- Cliente "autolavaggio" con piano Business può abilitare "Gestionale Lavaggio" (derivato da `dashdebug`)
+- Futuro: stesso per AVR → modulo "Gestionale Logistica"
+- Cross-sell: "loyalty compresa. Vuoi gestionale completo? +€X/mese"
+
+Riuso + aumento ARPU.
+
+## Go-to-market
+
+- **Dominio dedicato:** da acquistare (`fidelai.it` o varianti)
+- **Social:** Instagram, Facebook, TikTok (contenuti pratici per commercianti)
+- **Target primario:** attività locali siciliane/sud Italia
+- **Onboarding:** demo gratuita 14 giorni
+
+## Privacy / GDPR
+
+- Dati personali clienti finali → GDPR rigoroso
+- Ogni tenant = titolare dei propri dati, FidelAI = responsabile del trattamento
+- DPA (Data Processing Agreement) da preparare prima lancio commerciale
+
+## TODO aperti
+
+- [ ] Acquistare dominio `fidelai.it` (+ varianti)
+- [ ] Configurare Firebase project `fidelai-prod` e `fidelai-dev` (se non esistono)
+- [ ] Definire modello dati multi-tenant (carta, transazioni punti, redemption)
+- [ ] Sketch UI dei 4 schermi core (dashboard, clienti, campagne, settings)
+- [ ] Validazione pricing con 3-5 commercianti reali (rete Guido)
+- [ ] Integrazione Stripe
+- [ ] Preparare DPA
+
+## NON riutilizzare codice da altri progetti
+
+Anche se **dashdebug** e **avr-delivery-hub** hanno codice simile, **NON copiare/accoppiare** con FidelAI finché non è stabile l'architettura multi-tenant. Rischio: un bug su FidelAI rompe produzione degli altri.
