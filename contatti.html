@@ -164,22 +164,16 @@
 
         <h2>Sede</h2>
         <p>
-            <strong>FidelAI S.r.l.</strong><br>
-            Milano, Italia
-        </p>
-
-        <h2>Seguici</h2>
-        <p>
-            <a href="#">LinkedIn</a> &middot;
-            <a href="#">Instagram</a> &middot;
-            <a href="#">Facebook</a> &middot;
-            <a href="#">X (Twitter)</a>
+            <strong>Last Mile S.r.l.</strong><br>
+            Via Duca degli Abruzzi 180, 95126 Catania (CT), Italia<br>
+            C.F. / P.IVA 06183200879 &middot; REA CT-475508<br>
+            PEC: <a href="mailto:lastmilesrl@legalmail.it">lastmilesrl@legalmail.it</a>
         </p>
 
         <h2>Scrivici</h2>
         <p>Compila il modulo qui sotto e ti risponderemo il prima possibile.</p>
 
-        <form class="contact-form" onsubmit="event.preventDefault(); alert('Grazie per il tuo messaggio! Ti risponderemo al pi&ugrave; presto.');">
+        <form class="contact-form" id="contact-form">
             <label for="contact-name">Nome e cognome</label>
             <input type="text" id="contact-name" name="name" placeholder="Il tuo nome" required>
 
@@ -190,7 +184,26 @@
             <textarea id="contact-message" name="message" placeholder="Come possiamo aiutarti?" required></textarea>
 
             <button type="submit">Invia messaggio</button>
+            <p class="form-note" id="contact-fallback" style="margin-top:12px;font-size:0.9em;color:#6b7280;">Si aprir&agrave; il tuo programma di posta con il messaggio gi&agrave; compilato. Se non succede, scrivici direttamente a <a id="contact-fallback-link" href="#"></a>.</p>
         </form>
+
+    <script>
+        // Form contatti: mailto precompilato, nessun backend. Cambia qui l'indirizzo destinatario.
+        var CONTACT_EMAIL = 'info@last-mile.it';
+        (function () {
+            var fb = document.getElementById('contact-fallback-link');
+            fb.href = 'mailto:' + CONTACT_EMAIL; fb.textContent = CONTACT_EMAIL;
+            document.getElementById('contact-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                var nome = document.getElementById('contact-name').value.trim();
+                var email = document.getElementById('contact-email').value.trim();
+                var msg = document.getElementById('contact-message').value.trim();
+                var subject = 'Richiesta informazioni FidelAI - ' + nome;
+                var body = msg + '\n\n--\n' + nome + '\n' + email;
+                window.location.href = 'mailto:' + CONTACT_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            });
+        })();
+    </script>
     </div>
 
     <!-- Footer -->
@@ -226,7 +239,7 @@
             </div>
         </div>
         <div class="footer-bottom">
-            &copy; 2026 FidelAI. Tutti i diritti riservati.
+            &copy; 2026 FidelAI &egrave; un servizio di Last Mile S.r.l. &middot; P.IVA 06183200879. Tutti i diritti riservati.
         </div>
     </footer>
 
