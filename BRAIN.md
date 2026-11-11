@@ -36,26 +36,30 @@
 ## Architettura e file chiave
 - `index.html` — landing + pricing; redirect immediato a `/card.html` se hostname in `WHITELABEL_HOSTS`.
 - `dashboard.html` — app operatore (auth + 7 moduli), carica `js/moduli/*.js` con cache-busting `?v=`.
-- `card.html` — card cliente PWA white-label, pubblica (no auth); `HOSTNAME_MERCHANTS` mappa hostname → merchantId, altrimenti `?m=` in query.
+- `card.html` — card cliente PWA white-label; accesso con token personale nel link (`?t=`, resta nell'URL per "Aggiungi a Home" su iOS), nessuna lettura Firestore dal client: parla solo con `functions/card-api.js`; `HOSTNAME_MERCHANTS` mappa hostname → merchantId, altrimenti `?m=` in query.
 - `admin.html` — pannello SaaS (metriche, merchant), accesso solo `amministrazione@avrlogisticarl.com`.
-- `sw.js` — service worker cache-first per la card; `CACHE_NAME` da bumpare (`fidelai-card-vN`) a ogni modifica di card.html/css.
+- `sw.js` — service worker network-first (solo GET) per la card; `CACHE_NAME` da bumpare (`fidelai-card-vN`) a ogni modifica di card.html/css.
 - `manifest.json` / `manifest-washhub.json` — PWA manifest FidelAI / Wash Hub (tema oro `#C8A84E`, logo in `brand/`).
-- `js/firebase-config.js` — init compat SDK, esporta `auth`, `db`, `storage`, `firebase` (API key web pubblica, non è un secret).
+- `js/firebase-config.js` — init compat SDK, esporta `auth`, `db`, `storage`, `firebase`, `callFn(name, data)` per le callable europe-west1 (API key web pubblica, non è un secret).
 - `js/state.js` — stato globale (`currentUser`, `merchantId`, `merchantData`, liste).
-- `js/utils.js` — `formatDate`, `formatCurrency`, `showToast`, `generateId`, `debounce`.
-- `js/moduli/auth.js` — login/registrazione/reset password + scelta piano post-signup.
+- `js/utils.js` — `formatDate`, `formatCurrency`, `showToast`, `generateId`, `debounce`, `escapeHtml`, `once(key)` (listener agganciati una volta sola: i moduli si re-inizializzano a ogni navigazione), `downloadCSV`.
+- `js/livelli.js` — livelli fedeltà da `loyaltyConfig.levels` (`getLevels`, `getLevelName`, `isVip`, `isInactive`): unica fonte per dashboard, stessa logica di `functions/shared.js`.
+- `js/moduli/auth.js` — login/registrazione/reset password + scelta piano post-signup e ad abbonamento scaduto (gate solo lato client).
 - `js/moduli/navigazione.js` — switch moduli via `data-module`.
 - `js/moduli/home.js` — KPI giornalieri.
 - `js/moduli/loyalty.js` — config punti (`loyaltyConfig.pointsPerEuro`) e premi.
-- `js/moduli/clienti.js` — anagrafica, export CSV.
-- `js/moduli/transazioni.js` — form nuova transazione, calcolo punti.
-- `js/moduli/campagne.js` — campagne email (SMS placeholder).
+- `js/moduli/clienti.js` — anagrafica (creazione via callable `createCustomer`), link/QR card a token (`issueCardLink`), export CSV.
+- `js/moduli/transazioni.js` — accumulo punti (transazione Firestore atomica) e riscatto premi dalla dashboard (`merchantRedeem`: codice 4 cifre o cliente+premio).
+- `js/moduli/campagne.js` — campagne SMS/email senza invio automatico: `sendCampaign` calcola i destinatari con consenso e li esporta in CSV.
 - `js/moduli/analytics.js` — grafici/KPI.
 - `js/moduli/ai-agent.js` — chat AI via callable `aiChat`.
-- `js/moduli/impostazioni.js` — branding white-label (`branding.logoUrl`, `primaryColor`, `hideFidelaiBranding`), piano Stripe.
+- `js/moduli/impostazioni.js` — branding white-label (`branding.logoUrl`, `primaryColor`, `hideFidelaiBranding`), piano Stripe, chiavi API per integrazioni (solo piano Business).
 - `js/moduli/onboarding.js` — wizard primo accesso (`onboardingCompleted`).
 - `functions/index.js` — callable v1 `aiChat`, `aiInsights` (Claude Haiku 4.5, 30 query/giorno/merchant), `sendCampaign`, `createCheckoutSession`; v2 `stripeWebhook`, `onMerchantCreated` (email benvenuto), `weeklyReport` (lun 09:00), `inactiveCustomerAlert` (ogni giorno 10:00).
-- `functions/external-api.js` — onRequest v2: service-to-service con Bearer (`externalSyncCustomer`, `externalRecordTransaction`, `validateAndApplyRedeem`, `externalGetLoyalty`, `externalSetLoyalty`) + pubblici per la card (`selfActivateCard`, `generateRedeemCode`).
+- `functions/external-api.js` — onRequest v2 service-to-service con Bearer (`externalSyncCustomer`, `externalRecordTransaction`, `validateAndApplyRedeem`, `externalGetCustomer`, `externalGetLoyalty`, `externalSetLoyalty`); chiave per-merchant `fk_…` (collection `apiKeys`) oppure secret legacy valido solo per Wash Hub; `merchant` sempre nel body.
+- `functions/card-api.js` — onRequest v2 pubblici per la card, autenticati dal token (`getCardData`, `selfActivateCard`, `cardLogin`, `cardUpdateProfile`, `cardLogout`, `generateRedeemCode`), con rate limit in `cardLimits`.
+- `functions/merchant-api.js` — callable v1 per la dashboard (`issueCardLink`, `merchantRedeem`, `createCustomer`, `createApiKey`, `listApiKeys`, `revokeApiKey`).
+- `functions/shared.js` — helper comuni (`getAdmin`/`getDb` lazy, token card, livelli, riscatto codice, rate limit).
 - `firestore.rules` — merchant legge/scrive solo il proprio `merchants/{uid}`; `merchants`, `customers`, `rewards`, `transactions` leggibili pubblicamente per la card; `rateLimits`, `aiUsage`, `insightsCache` solo admin SDK.
 - `firestore.indexes.json` — unico indice composito: `transactions(customerId ASC, createdAt DESC)`.
 - `storage.rules` — `branding/{merchantId}/*` pubblico in lettura, scrittura solo owner, max 1 MB png/jpeg/svg.
@@ -66,22 +70,24 @@
 
 ## Modello dati Firestore
 - Multi-tenant: `merchants/{merchantId}` dove merchantId = UID Firebase Auth dell'operatore.
-- Subcollection: `customers`, `rewards`, `transactions`, `pendingEarns`, `redeemCodes`.
+- Subcollection: `customers`, `rewards`, `transactions`, `pendingEarns`, `redeemCodes`, `campaigns`.
 - `merchantAliases/{slug}` → `{ merchantId }` per risolvere slug (es. `washhub`) negli endpoint esterni.
-- `customers/{id}`: id = numero telefono normalizzato (senza +39); campi `cardAttivata`, `totalPoints`, `visits`, `lastVisit`, `consents{consentPrivacy,consentSms,consentEmail}`, `sedeId`.
+- `customers/{id}`: id = numero telefono normalizzato (senza +39); campi `cardAttivata`, `cardTokenHashes` (sha256 dei token dei dispositivi collegati, max 5), `totalPoints`, `visits`, `lastVisit`, `consents{consentPrivacy,consentSms,consentEmail}`, `sedeId`.
 - `transactions`: `type` `earn` | `redeem`, `points`, `amount`, `refId` idempotente, `source` (`pending-on-activation`, `redeem-code`, ...).
 - `pendingEarns`: lavaggi pagati prima dell'attivazione card; accreditati all'attivazione se entro 30 giorni, poi cancellati.
 - `redeemCodes/{code}`: codice 4 cifre, TTL 5 minuti, `consumed` flag; generato dalla card, validato dal gestionale.
-- Root: `rateLimits/{merchantId}_{YYYY-MM-DD}`, `aiUsage`, `insightsCache/{merchantId}`.
+- Root: `rateLimits/{merchantId}_{YYYY-MM-DD}`, `aiUsage`, `insightsCache/{merchantId}`, `apiKeys/{sha256(chiave)}`, `cardLimits/{hash}` (solo admin SDK).
 
 ## Decisioni prese e perché
 - Un solo Firebase project condiviso + isolamento logico per merchant via rules: meno costi e gestione rispetto a un project per tenant.
 - Callable `aiChat`/`aiInsights`/`sendCampaign`/`createCheckoutSession` su Functions v1: la v2 (Cloud Run) era bloccata da org policy IAM.
 - External API su onRequest v2 con Bearer in confronto a tempo costante: i chiamanti sono Cloud Functions di altri project, non utenti Firebase Auth.
-- Nessun auto-create di customer dal bridge: l'unico ingresso di un cliente è la self-activation dalla card con consenso esplicito (GDPR).
+- Nessun auto-create di customer dal bridge: un cliente entra con la self-activation dalla card oppure creato dal merchant in dashboard (`cardAttivata: false`); in entrambi i casi la card si attiva solo con consenso privacy esplicito del cliente (GDPR).
+- Card a token invece di letture Firestore pubbliche: il link personale è la chiave della card, in Firestore resta solo l'hash; attivazione trust-on-first-use (nessun OTP SMS).
 - Solo consenso privacy obbligatorio; SMS/email marketing facoltativi (GDPR).
 - Premi ordinati lato client: la query `active + orderBy(pointsCost)` richiederebbe un indice composito mai creato.
-- Lazy-require di admin/anthropic/stripe/nodemailer nelle Functions per evitare timeout di deploy.
+- Lazy-require di admin/anthropic/stripe/nodemailer nelle Functions per evitare timeout di deploy; `getAdmin` verifica l'app di default con `admin.app()` e non con `apps.length` (firebase-functions registra una sua app con nome proprio per le callable).
+- Deploy functions sempre per nome (`--only functions:a,functions:b`): in produzione esiste ancora `selfRegisterCustomer`, non più nel sorgente.
 - Cache-Control 60s su js/html/json in hosting + `?v=` sugli import: deploy senza stale cache.
 - Wash Hub è trattato come cliente esterno di FidelAI: dashdebug parla con FidelAI solo via bridge API, mai codice condiviso.
 - NON copiare codice da dashdebug/avr-delivery-hub finché l'architettura multi-tenant non è stabile (un bug qui non deve rompere produzione altrui).
@@ -106,7 +112,7 @@
 ## Stato attuale e prossimi passi
 - Fase 1 MVP loyalty completata e in produzione con Wash Hub (card, punti, premi, riscatto codice, pendingEarns).
 - Stripe, email (SMTP), AI agent, report settimanale e alert inattivi deployati.
-- `scripts/deploy-hosting.js` esiste ma non è ancora committato.
+- Firestore rules ancora aperte in lettura pubblica su `merchants`/`customers`/`rewards`/`transactions` e senza blocco su `plan`/`subscriptionFree`/`stripe*` lato merchant: chiusura in attesa di revisione di Guido (prima serve che dashdebug smetta di leggere Firestore in anonimo).
 - TODO: dominio `fidelai.it` è attivo; valutare varianti.
 - TODO: configurare project `fidelai-dev` separato (oggi si lavora solo su `fideliai-app`).
 - TODO: sketch UI dei 4 schermi core; validazione pricing con 3-5 commercianti reali.
