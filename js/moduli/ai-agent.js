@@ -1,7 +1,8 @@
 // FidelAI — AI Agent Module (Enhanced + Cloud AI)
 import state from '../state.js';
 import { firebase } from '../firebase-config.js';
-import { formatNumber, formatCurrency, showToast } from '../utils.js';
+import { formatNumber, formatCurrency, showToast, once } from '../utils.js';
+import { getLevels, isVip } from '../livelli.js';
 import { navigateTo } from './navigazione.js';
 
 // Cloud Function AI - usa Haiku quando disponibile, fallback locale
@@ -18,13 +19,10 @@ const CATEGORY_REWARD_SUGGESTIONS = {
     'default': ['Sconto speciale', 'Prodotto/servizio omaggio', 'Accesso anticipato offerte']
 };
 
-// Soglie livelli standard
-const LEVEL_THRESHOLDS = [
-    { name: 'Silver', min: 0 },
-    { name: 'Gold', min: 500 },
-    { name: 'Platinum', min: 1500 },
-    { name: 'Diamond', min: 5000 }
-];
+// Soglie livelli: quelle configurate dal merchant (stesse di card e CRM)
+function levelThresholds() {
+    return getLevels().map(l => ({ name: l.name, min: l.minPoints }));
+}
 
 export function initAiAgent() {
     generateInsights();
@@ -147,7 +145,7 @@ function analyzeData() {
     const nearUpgrade = findCustomersNearUpgrade(customers);
     if (nearUpgrade.length > 0) {
         const names = nearUpgrade.slice(0, 3).map(c =>
-            `<strong>${c.name}</strong> (${formatNumber(c.points)} pts, mancano ${formatNumber(c.pointsToNext)})`
+            `<strong>${escapeHtml(c.name)}</strong> (${formatNumber(c.points)} pts, mancano ${formatNumber(c.pointsToNext)})`
         ).join(', ');
         const extra = nearUpgrade.length > 3 ? ` e altri ${nearUpgrade.length - 3}` : '';
 
@@ -250,12 +248,12 @@ function analyzeData() {
     }
 
     // --- 11. VIP recognition ---
-    const vips = customers.filter(c => (c.totalPoints || 0) >= 1500);
+    const vips = customers.filter(isVip);
     if (vips.length > 0) {
         const topVip = vips.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))[0];
         insights.push({
             title: '⭐ Clienti VIP',
-            message: `<strong>${vips.length}</strong> clienti hanno raggiunto lo status Gold/Platinum. Il tuo miglior cliente e <strong>${topVip.name || 'N/A'}</strong> con ${formatNumber(topVip.totalPoints)} punti. Considera un messaggio personalizzato o un\'offerta esclusiva.`,
+            message: `<strong>${vips.length}</strong> clienti hanno raggiunto i livelli piu alti. Il tuo miglior cliente e <strong>${escapeHtml(topVip.name || 'N/A')}</strong> con ${formatNumber(topVip.totalPoints)} punti. Considera un messaggio personalizzato o un\'offerta esclusiva.`,
             action: 'Gestisci clienti VIP',
             navigateTo: 'clienti'
         });
@@ -277,6 +275,7 @@ function analyzeData() {
  */
 function findCustomersNearUpgrade(customers) {
     const nearUpgrade = [];
+    const LEVEL_THRESHOLDS = levelThresholds();
 
     customers.forEach(c => {
         const points = c.totalPoints || 0;
@@ -311,7 +310,8 @@ function findCustomersNearUpgrade(customers) {
 
 function setupAiChat() {
     const form = document.getElementById('ai-chat-form');
-    if (!form) return;
+    // Il modulo viene re-inizializzato a ogni navigazione: un solo listener, altrimenti ogni domanda parte N volte.
+    if (!form || !once('ai-agent')) return;
 
     form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -449,7 +449,7 @@ function getAiResponse(query) {
         const sorted = [...customers].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
         const top = sorted.slice(0, 5);
         const list = top.map((c, i) =>
-            `${i + 1}. <strong>${c.name || c.email || 'Anonimo'}</strong> — ${formatNumber(c.totalPoints || 0)} punti, ${c.visits || 0} visite`
+            `${i + 1}. <strong>${escapeHtml(c.name || c.email || 'Anonimo')}</strong> — ${formatNumber(c.totalPoints || 0)} punti, ${c.visits || 0} visite`
         ).join('<br>');
 
         return `Ecco i tuoi <strong>Top 5 clienti</strong> per punti:<br>${list}`;
@@ -499,18 +499,19 @@ function getAiResponse(query) {
             const suggestions = CATEGORY_REWARD_SUGGESTIONS[category] || CATEGORY_REWARD_SUGGESTIONS['default'];
             return `Non hai ancora configurato premi! E\' fondamentale per il programma loyalty. Ti suggerisco: <strong>${suggestions.join('</strong>, <strong>')}</strong>. Vai nel modulo Loyalty per configurarli.`;
         }
-        const list = rewards.map(r => `- <strong>${r.name || r.title || 'Premio'}</strong>: ${formatNumber(r.pointsCost || r.points || 0)} punti`).join('<br>');
+        const list = rewards.map(r => `- <strong>${escapeHtml(r.name || r.title || 'Premio')}</strong>: ${formatNumber(r.pointsCost || r.points || 0)} punti`).join('<br>');
         return `Hai <strong>${rewards.length}</strong> premi configurati:<br>${list}`;
     }
 
     // --- Livelli / Levels ---
     if (matchesAny(q, ['livell', 'level', 'tier', 'gold', 'platinum', 'silver', 'diamond', 'status'])) {
         const levelCounts = {};
+        const LEVEL_THRESHOLDS = levelThresholds();
         LEVEL_THRESHOLDS.forEach(l => { levelCounts[l.name] = 0; });
 
         customers.forEach(c => {
             const pts = c.totalPoints || 0;
-            let level = 'Silver';
+            let level = LEVEL_THRESHOLDS[0].name;
             for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
                 if (pts >= LEVEL_THRESHOLDS[i].min) {
                     level = LEVEL_THRESHOLDS[i].name;
@@ -521,7 +522,7 @@ function getAiResponse(query) {
         });
 
         const breakdown = Object.entries(levelCounts)
-            .map(([name, count]) => `<strong>${name}</strong>: ${count} clienti`)
+            .map(([name, count]) => `<strong>${escapeHtml(name)}</strong>: ${count} clienti`)
             .join(' | ');
 
         const nearUp = findCustomersNearUpgrade(customers);

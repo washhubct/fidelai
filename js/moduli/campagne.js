@@ -1,7 +1,9 @@
 // FidelAI — Campagne Module
-import { db, firebase } from '../firebase-config.js';
+import { db, firebase, callFn } from '../firebase-config.js';
 import state from '../state.js';
-import { showToast, formatDate, formatNumber } from '../utils.js';
+import { showToast, formatDate, formatNumber, escapeHtml, once, downloadCSV } from '../utils.js';
+
+const CHANNEL_LABELS = { sms: 'SMS', email: 'Email', push: 'Push (non disponibile)' };
 
 export function initCampagne() {
     loadCampaigns();
@@ -39,28 +41,37 @@ async function loadCampaigns() {
         card.className = 'panel campaign-card';
         card.style.cursor = 'pointer';
 
-        // Determina badge e azioni in base allo status
-        const isCompleted = c.status === 'completed';
+        // L'invio automatico non esiste ancora: una campagna è una bozza oppure
+        // ha l'elenco destinatari pronto. "completed" resta solo sulle vecchie simulazioni.
+        const isReady = c.status === 'ready';
         const isDraft = c.status === 'draft';
+        const isPush = c.channel === 'push';
+        const channel = CHANNEL_LABELS[c.channel] || 'SMS';
 
         let statusBadge = '';
-        if (isCompleted) {
-            statusBadge = `<span class="badge badge-info" style="margin-top:4px">✅ Completata</span>`;
+        if (isReady) {
+            statusBadge = `<span class="badge badge-success" style="margin-top:4px">Destinatari pronti</span>`;
         } else if (isDraft) {
             statusBadge = `<span class="badge badge-warning" style="margin-top:4px">Bozza</span>`;
         } else {
-            statusBadge = `<span class="badge badge-success" style="margin-top:4px">Attiva</span>`;
+            statusBadge = `<span class="badge badge-info" style="margin-top:4px">Archiviata (mai inviata)</span>`;
         }
 
         let actionBtn = '';
-        if (isDraft) {
-            actionBtn = `<button class="btn btn-primary btn-sm btn-send-campaign" data-id="${doc.id}" style="margin-left:auto;font-size:13px;padding:6px 16px">🚀 Invia</button>`;
+        if (isDraft && !isPush) {
+            actionBtn = `<button class="btn btn-primary btn-sm btn-prepare-campaign" data-id="${doc.id}" style="margin-left:auto;font-size:13px;padding:6px 16px">Prepara destinatari</button>`;
+        } else if (isReady) {
+            actionBtn = `<button class="btn btn-primary btn-sm btn-export-campaign" data-id="${doc.id}" style="margin-left:auto;font-size:13px;padding:6px 16px">Esporta destinatari</button>`;
         }
+
+        const audienceLine = isReady
+            ? `<span>✅ Con consenso ${channel}: ${formatNumber(c.audience || 0)} su ${formatNumber(c.segmentSize || 0)}</span>`
+            : '';
 
         card.innerHTML = `
             <div class="panel-header">
                 <div>
-                    <h3>${c.name}</h3>
+                    <h3>${escapeHtml(c.name)}</h3>
                     ${statusBadge}
                 </div>
                 <div class="flex" style="align-items:center;gap:12px">
@@ -69,29 +80,28 @@ async function loadCampaigns() {
                 </div>
             </div>
             <div class="panel-body">
-                <p style="font-size:14px;color:var(--gray-600);margin-bottom:16px">${c.message}</p>
-                <div class="flex gap-16" style="font-size:13px;color:var(--gray-500)">
-                    <span>📱 ${c.channel === 'sms' ? 'SMS' : 'Push'}</span>
-                    <span>👥 Target: ${getSegmentLabel(c.segment)}</span>
-                    <span>📨 Inviati: ${formatNumber(c.sent || 0)}</span>
+                <p style="font-size:14px;color:var(--gray-600);margin-bottom:16px">${escapeHtml(c.message)}</p>
+                <div class="flex gap-16" style="font-size:13px;color:var(--gray-500);flex-wrap:wrap">
+                    <span>📱 ${channel}</span>
+                    <span>👥 Target: ${escapeHtml(getSegmentLabel(c.segment))}</span>
+                    ${audienceLine}
                 </div>
             </div>
             <div class="campaign-detail" style="display:none;padding:0 24px 20px;border-top:1px solid var(--gray-200);margin-top:12px;padding-top:16px">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;color:var(--gray-600)">
-                    <div><strong>Canale:</strong> ${c.channel === 'sms' ? 'SMS' : 'Push notification'}</div>
-                    <div><strong>Segmento:</strong> ${getSegmentLabel(c.segment)}</div>
-                    <div><strong>Messaggi inviati:</strong> ${formatNumber(c.sent || 0)}</div>
+                    <div><strong>Canale:</strong> ${channel}</div>
+                    <div><strong>Segmento:</strong> ${escapeHtml(getSegmentLabel(c.segment))}</div>
                     <div><strong>Creata il:</strong> ${formatDate(c.createdAt)}</div>
-                    <div style="grid-column:1/-1"><strong>Messaggio completo:</strong><br><em>"${c.message}"</em></div>
-                    ${isCompleted && c.completedAt ? `<div><strong>Completata il:</strong> ${formatDate(c.completedAt)}</div>` : ''}
+                    ${isReady ? `<div><strong>Elenco aggiornato il:</strong> ${formatDate(c.preparedAt)}</div>` : ''}
+                    <div style="grid-column:1/-1"><strong>Messaggio completo:</strong><br><em>"${escapeHtml(c.message)}"</em></div>
+                    <div style="grid-column:1/-1;color:var(--gray-500)">L'invio automatico non è ancora attivo: esporta i destinatari (solo chi ha dato il consenso) e invia il messaggio con il tuo strumento ${c.channel === 'email' ? 'email' : 'SMS'}.</div>
                 </div>
             </div>
         `;
 
         // Toggle dettaglio al click sulla card
         card.addEventListener('click', (e) => {
-            // Non togglare se si clicca sul pulsante Invia
-            if (e.target.closest('.btn-send-campaign')) return;
+            if (e.target.closest('button')) return;
             const detail = card.querySelector('.campaign-detail');
             if (detail) {
                 detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
@@ -101,12 +111,11 @@ async function loadCampaigns() {
         container.appendChild(card);
     });
 
-    // Bind pulsanti Invia
-    container.querySelectorAll('.btn-send-campaign').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sendCampaign(btn.dataset.id);
-        });
+    container.querySelectorAll('.btn-prepare-campaign').forEach(btn => {
+        btn.addEventListener('click', () => prepareCampaign(btn.dataset.id, btn, false));
+    });
+    container.querySelectorAll('.btn-export-campaign').forEach(btn => {
+        btn.addEventListener('click', () => prepareCampaign(btn.dataset.id, btn, true));
     });
 }
 
@@ -120,95 +129,48 @@ function getSegmentLabel(segment) {
     return labels[segment] || segment || 'Tutti';
 }
 
-async function sendCampaign(campaignId) {
+// Calcola lato server i destinatari reali (segmento + consenso al canale) e,
+// se richiesto, li scarica in CSV. Nessun messaggio viene inviato da qui.
+async function prepareCampaign(campaignId, btn, exportList) {
     if (!state.merchantId) return;
 
-    // Trova la campagna nello state
     const campaign = state.campaigns?.find(c => c.id === campaignId);
     if (!campaign) {
         showToast('Campagna non trovata', 'error');
         return;
     }
 
-    if (campaign.status !== 'draft') {
-        showToast('Questa campagna è già stata inviata', 'error');
-        return;
-    }
-
-    // Disabilita il pulsante durante l'invio
-    const btn = document.querySelector(`.btn-send-campaign[data-id="${campaignId}"]`);
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = '⏳ Invio...';
-    }
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Calcolo...';
 
     try {
-        const sendCampaignFn = firebase.app().functions('europe-west1').httpsCallable('sendCampaign');
-        const result = await sendCampaignFn({ campaignId });
+        const res = await callFn('sendCampaign', { campaignId, includeRecipients: exportList });
+        const channel = CHANNEL_LABELS[campaign.channel] || 'SMS';
 
-        showToast(`Campagna inviata a ${result.data.sent} clienti!`);
+        if (exportList) {
+            if (!res.recipients?.length) {
+                showToast(`Nessun cliente del segmento ha dato il consenso ${channel}.`, 'warning');
+            } else {
+                const today = new Date().toISOString().slice(0, 10);
+                downloadCSV(`destinatari_${today}.csv`, ['Nome', 'Telefono', 'Email'],
+                    res.recipients.map(r => [r.name, r.phone, r.email]));
+                showToast(`Esportati ${res.recipients.length} destinatari`);
+            }
+        } else {
+            showToast(`Destinatari pronti: ${res.audience} con consenso ${channel} su ${res.segmentSize} nel segmento.`);
+        }
         loadCampaigns();
     } catch (error) {
-        console.warn('Cloud Function non disponibile, simulazione locale:', error.message);
-
-        // Fallback: simulazione locale
-        try {
-            const sentCount = await simulateLocalSend(campaignId, campaign);
-            showToast(`Campagna inviata a ${sentCount} clienti!`);
-            loadCampaigns();
-        } catch (localError) {
-            showToast('Errore nell\'invio: ' + localError.message, 'error');
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = '🚀 Invia';
-            }
-        }
+        showToast('Errore: ' + error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = label;
     }
-}
-
-async function simulateLocalSend(campaignId, campaign) {
-    // Conta clienti target
-    const customersSnap = await db.collection(`merchants/${state.merchantId}/customers`).get();
-    let targetCount = customersSnap.size;
-
-    if (campaign.segment === 'vip') {
-        targetCount = customersSnap.docs.filter(doc => {
-            const tier = doc.data().tier;
-            return tier === 'gold' || tier === 'platinum';
-        }).length;
-    } else if (campaign.segment === 'inactive') {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        targetCount = customersSnap.docs.filter(doc => {
-            const lastVisit = doc.data().lastVisit;
-            if (!lastVisit) return true;
-            return lastVisit.toDate() < thirtyDaysAgo;
-        }).length;
-    } else if (campaign.segment === 'new') {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        targetCount = customersSnap.docs.filter(doc => {
-            const createdAt = doc.data().createdAt;
-            if (!createdAt) return false;
-            return createdAt.toDate() >= sevenDaysAgo;
-        }).length;
-    }
-
-    // Aggiorna Firestore
-    await db.doc(`merchants/${state.merchantId}/campaigns/${campaignId}`).update({
-        status: 'completed',
-        sent: targetCount,
-        completedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    return targetCount;
 }
 
 function setupCampagneForms() {
-    const form = document.getElementById('campaign-form');
-    if (form) {
-        form.addEventListener('submit', createCampaign);
-    }
+    if (!once('campagne')) return;
+    document.getElementById('campaign-form')?.addEventListener('submit', createCampaign);
 }
 
 async function createCampaign(e) {

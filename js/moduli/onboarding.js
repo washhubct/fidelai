@@ -1,5 +1,5 @@
 // FidelAI — Onboarding Wizard Module
-import { db } from '../firebase-config.js';
+import { db, firebase, callFn } from '../firebase-config.js';
 import state from '../state.js';
 import { showToast } from '../utils.js';
 
@@ -90,29 +90,24 @@ async function addFirstCustomer() {
     if (!state.merchantId) return;
 
     const name = document.getElementById('onb-cust-name').value.trim();
-    const contact = document.getElementById('onb-cust-contact').value.trim();
+    const phone = document.getElementById('onb-cust-contact').value.trim();
+    const btn = document.getElementById('onb-btn-customer');
 
-    if (!name) {
-        showToast('Inserisci almeno il nome', 'error');
+    if (!name || !phone) {
+        showToast('Inserisci nome e cellulare', 'error');
         return;
     }
 
-    const isEmail = contact.includes('@');
-
+    if (btn) btn.disabled = true;
     try {
-        await db.collection(`merchants/${state.merchantId}/customers`).add({
-            name,
-            email: isEmail ? contact : '',
-            phone: !isEmail ? contact : '',
-            totalPoints: 0,
-            visits: 0,
-            lastVisit: null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        // Stessa strada del CRM: ID = telefono normalizzato, niente doppioni con card e gestionale.
+        await callFn('createCustomer', { name, phone });
         showToast('Cliente aggiunto!');
         goToStep(4);
     } catch (error) {
         showToast('Errore: ' + error.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

@@ -46,9 +46,11 @@ export function navigateTo(moduleId) {
         topTitle.textContent = modules[moduleId].title;
     }
 
-    // Show/hide transaction button (only on home)
+    // Transazione solo in home; il riscatto serve anche dall'elenco clienti
     const transBtn = document.getElementById('btn-add-transaction');
     if (transBtn) transBtn.style.display = moduleId === 'home' ? '' : 'none';
+    const redeemBtn = document.getElementById('btn-redeem');
+    if (redeemBtn) redeemBtn.style.display = ['home', 'clienti'].includes(moduleId) ? '' : 'none';
 
     // Close mobile sidebar
     document.querySelector('.sidebar')?.classList.remove('open');

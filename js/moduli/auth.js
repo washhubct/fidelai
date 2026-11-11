@@ -5,11 +5,25 @@ import { showToast } from '../utils.js';
 import { showOnboarding } from './onboarding.js';
 import { checkAutoUpgrade } from './impostazioni.js';
 
+// La registrazione crea prima l'utente Auth e poi il profilo merchant:
+// onAuthStateChanged scatta in mezzo e deve aspettare che il profilo esista.
+let pendingRegistration = null;
+
+// Abbonamento chiuso (disdetta o mancato pagamento): serve scegliere di nuovo un piano.
+const LAPSED_SUBSCRIPTION = ['canceled', 'unpaid', 'incomplete_expired'];
+
 export function initAuth() {
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             state.currentUser = user;
-            await loadMerchantData(user.uid);
+            try {
+                if (pendingRegistration) await pendingRegistration.catch(() => {});
+                await loadMerchantData(user);
+            } catch (error) {
+                console.error('Caricamento profilo merchant:', error);
+                showToast('Non riesco a caricare il tuo profilo. Controlla la connessione e ricarica la pagina.', 'error');
+                return;
+            }
             showDashboard();
 
             const params = new URLSearchParams(window.location.search);
@@ -18,9 +32,10 @@ export function initAuth() {
 
             const paymentStatus = params.get('payment');
 
+            const subscriptionLapsed = LAPSED_SUBSCRIPTION.includes(state.merchantData?.stripeSubscriptionStatus);
             const needsPayment = state.merchantData
-                && !state.merchantData.stripeSubscriptionId
-                && state.merchantData.subscriptionFree !== true;
+                && state.merchantData.subscriptionFree !== true
+                && (!state.merchantData.stripeSubscriptionId || subscriptionLapsed);
 
             if (paymentStatus === 'success') {
                 // Ritorno da Stripe Checkout
@@ -31,8 +46,8 @@ export function initAuth() {
                 // Arriva dalla landing con piano scelto → Stripe Checkout
                 checkAutoUpgrade();
             } else if (needsPayment) {
-                // Nessun abbonamento Stripe → mostra selezione piano
-                showPlanSelection();
+                // Nessun abbonamento Stripe (o abbonamento chiuso) → mostra selezione piano
+                showPlanSelection(subscriptionLapsed);
             } else if (isNewUser) {
                 showOnboarding();
             }
@@ -47,13 +62,37 @@ export function initAuth() {
     setupAuthForms();
 }
 
-async function loadMerchantData(uid) {
-    const doc = await db.collection('merchants').doc(uid).get();
-    if (doc.exists) {
-        state.merchantId = uid;
-        state.merchantData = doc.data();
-        updateMerchantUI();
+function newMerchantProfile({ email, businessName, category }) {
+    return {
+        email,
+        businessName,
+        category,
+        plan: 'starter',
+        loyaltyConfig: {
+            pointsPerEuro: 1,
+            levels: [
+                { name: 'Bronze', minPoints: 0 },
+                { name: 'Silver', minPoints: 500 },
+                { name: 'Gold', minPoints: 1500 },
+                { name: 'Platinum', minPoints: 5000 }
+            ]
+        },
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+}
+
+async function loadMerchantData(user) {
+    const ref = db.collection('merchants').doc(user.uid);
+    let doc = await ref.get();
+    if (!doc.exists) {
+        // Account Auth senza profilo (registrazione interrotta a metà): lo ricreiamo,
+        // altrimenti la dashboard resterebbe vuota a ogni accesso.
+        await ref.set(newMerchantProfile({ email: user.email || '', businessName: 'La mia attività', category: '' }));
+        doc = await ref.get();
     }
+    state.merchantId = user.uid;
+    state.merchantData = doc.data();
+    updateMerchantUI();
 }
 
 function updateMerchantUI() {
@@ -126,8 +165,23 @@ async function handleLogin(e) {
         await auth.signInWithEmailAndPassword(email, password);
         showToast('Accesso effettuato');
     } catch (error) {
-        showToast('Errore: ' + error.message, 'error');
+        showToast(authErrorMessage(error), 'error');
     }
+}
+
+function authErrorMessage(error) {
+    const messages = {
+        'auth/invalid-login-credentials': 'Email o password non corretti.',
+        'auth/invalid-credential': 'Email o password non corretti.',
+        'auth/wrong-password': 'Email o password non corretti.',
+        'auth/user-not-found': 'Email o password non corretti.',
+        'auth/invalid-email': 'Indirizzo email non valido.',
+        'auth/email-already-in-use': 'Esiste già un account con questa email: accedi o recupera la password.',
+        'auth/weak-password': 'La password deve avere almeno 6 caratteri.',
+        'auth/too-many-requests': 'Troppi tentativi. Riprova tra qualche minuto.',
+        'auth/network-request-failed': 'Connessione assente. Riprova.'
+    };
+    return messages[error.code] || 'Errore: ' + error.message;
 }
 
 async function handleRegister(e) {
@@ -137,27 +191,22 @@ async function handleRegister(e) {
     const businessName = document.getElementById('reg-business').value;
     const category = document.getElementById('reg-category').value;
 
-    try {
+    const btn = e.target.querySelector('[type="submit"]');
+    if (btn) btn.disabled = true;
+
+    pendingRegistration = (async () => {
         const cred = await auth.createUserWithEmailAndPassword(email, password);
-        await db.collection('merchants').doc(cred.user.uid).set({
-            email,
-            businessName,
-            category,
-            plan: 'starter',
-            loyaltyConfig: {
-                pointsPerEuro: 1,
-                levels: [
-                    { name: 'Bronze', minPoints: 0 },
-                    { name: 'Silver', minPoints: 500 },
-                    { name: 'Gold', minPoints: 1500 },
-                    { name: 'Platinum', minPoints: 5000 }
-                ]
-            },
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        await db.collection('merchants').doc(cred.user.uid).set(newMerchantProfile({ email, businessName, category }));
+    })();
+
+    try {
+        await pendingRegistration;
         showToast('Account creato con successo!');
     } catch (error) {
-        showToast('Errore: ' + error.message, 'error');
+        showToast(authErrorMessage(error), 'error');
+    } finally {
+        pendingRegistration = null;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -191,7 +240,7 @@ export function logout() {
     auth.signOut();
 }
 
-function showPlanSelection() {
+function showPlanSelection(lapsed = false) {
     // Remove existing overlay if any
     const existing = document.getElementById('plan-selection-overlay');
     if (existing) existing.remove();
@@ -201,8 +250,8 @@ function showPlanSelection() {
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
     overlay.innerHTML = `
         <div style="background:#fff;border-radius:16px;max-width:900px;width:100%;padding:32px;max-height:90vh;overflow-y:auto;">
-            <h2 style="text-align:center;margin:0 0 8px;font-size:24px;color:#1f2937;">Scegli il tuo piano</h2>
-            <p style="text-align:center;margin:0 0 24px;color:#6b7280;">14 giorni di prova gratuita. Inserisci la carta, non ti verrà addebitato nulla oggi.</p>
+            <h2 style="text-align:center;margin:0 0 8px;font-size:24px;color:#1f2937;">${lapsed ? 'Il tuo abbonamento non è più attivo' : 'Scegli il tuo piano'}</h2>
+            <p style="text-align:center;margin:0 0 24px;color:#6b7280;">${lapsed ? 'Scegli un piano per continuare a usare FidelAI: clienti e punti sono al sicuro.' : '14 giorni di prova gratuita. Inserisci la carta, non ti verrà addebitato nulla oggi.'}</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
                 <div style="border:2px solid #e5e7eb;border-radius:12px;padding:24px;text-align:center;">
                     <h3 style="margin:0 0 8px;color:#1f2937;">Starter</h3>
@@ -213,7 +262,7 @@ function showPlanSelection() {
                         <li style="padding:4px 0;">✓ Card digitale QR</li>
                         <li style="padding:4px 0;">✓ Supporto email</li>
                     </ul>
-                    <button class="btn btn-ghost btn-plan-select" data-plan="starter" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;">Inizia gratis</button>
+                    <button class="btn btn-ghost btn-plan-select" data-plan="starter" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;">${lapsed ? 'Riattiva' : 'Inizia gratis'}</button>
                 </div>
                 <div style="border:2px solid #6366F1;border-radius:12px;padding:24px;text-align:center;position:relative;">
                     <span style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#6366F1;color:#fff;padding:2px 12px;border-radius:12px;font-size:12px;font-weight:600;">Consigliato</span>
@@ -225,7 +274,7 @@ function showPlanSelection() {
                         <li style="padding:4px 0;">✓ CRM + Campagne</li>
                         <li style="padding:4px 0;">✓ Analytics dashboard</li>
                     </ul>
-                    <button class="btn btn-primary btn-plan-select" data-plan="pro" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;background:#6366F1;color:#fff;border:none;">Inizia gratis</button>
+                    <button class="btn btn-primary btn-plan-select" data-plan="pro" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;background:#6366F1;color:#fff;border:none;">${lapsed ? 'Riattiva' : 'Inizia gratis'}</button>
                 </div>
                 <div style="border:2px solid #e5e7eb;border-radius:12px;padding:24px;text-align:center;">
                     <h3 style="margin:0 0 8px;color:#1f2937;">Business</h3>
@@ -236,7 +285,7 @@ function showPlanSelection() {
                         <li style="padding:4px 0;">✓ AI Agent</li>
                         <li style="padding:4px 0;">✓ Multi-sede + API</li>
                     </ul>
-                    <button class="btn btn-ghost btn-plan-select" data-plan="business" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;">Inizia gratis</button>
+                    <button class="btn btn-ghost btn-plan-select" data-plan="business" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;">${lapsed ? 'Riattiva' : 'Inizia gratis'}</button>
                 </div>
             </div>
         </div>
@@ -247,6 +296,7 @@ function showPlanSelection() {
     overlay.querySelectorAll('.btn-plan-select').forEach(btn => {
         btn.addEventListener('click', async () => {
             const planId = btn.dataset.plan;
+            const btnLabel = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Caricamento...';
             try {
@@ -260,13 +310,13 @@ function showPlanSelection() {
                     console.error('Nessun URL nella risposta:', result);
                     showToast('Errore: nessun URL di pagamento ricevuto.', 'error');
                     btn.disabled = false;
-                    btn.textContent = 'Inizia gratis';
+                    btn.textContent = btnLabel;
                 }
             } catch (error) {
                 console.error('Errore checkout:', error);
                 showToast('Errore: ' + (error.message || 'Impossibile avviare il pagamento'), 'error');
                 btn.disabled = false;
-                btn.textContent = 'Inizia gratis';
+                btn.textContent = btnLabel;
             }
         });
     });

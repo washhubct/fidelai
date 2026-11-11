@@ -18,4 +18,10 @@ const db = firebase.firestore();
 const storage = firebase.storage ? firebase.storage() : null;
 const firebaseRef = firebase;
 
-export { auth, db, storage, firebaseRef as firebase };
+// Chiama una callable della region europe-west1 e ritorna direttamente i dati.
+async function callFn(name, data = {}) {
+    const result = await firebase.app().functions('europe-west1').httpsCallable(name)(data);
+    return result.data;
+}
+
+export { auth, db, storage, firebaseRef as firebase, callFn };

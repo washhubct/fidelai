@@ -1,12 +1,13 @@
 // FidelAI — Loyalty Engine Module
-import { db } from '../firebase-config.js';
+import { db, firebase } from '../firebase-config.js';
 import state from '../state.js';
-import { showToast, formatNumber } from '../utils.js';
+import { showToast, formatNumber, escapeHtml, once } from '../utils.js';
+import { getLevels } from '../livelli.js';
 
 export function initLoyalty() {
     loadLoyaltyConfig();
     loadRewards();
-    setupLoyaltyForms();
+    if (once('loyalty')) setupLoyaltyForms();
 }
 
 async function loadLoyaltyConfig() {
@@ -17,12 +18,14 @@ async function loadLoyaltyConfig() {
     if (ppeInput) ppeInput.value = config.pointsPerEuro || 1;
 
     const levelsContainer = document.getElementById('loyalty-levels');
-    if (levelsContainer && config.levels) {
-        levelsContainer.innerHTML = config.levels.map((lvl, i) => `
+    if (levelsContainer) {
+        const levels = getLevels();
+        const maxPoints = levels[levels.length - 1].minPoints || 1;
+        levelsContainer.innerHTML = levels.map(lvl => `
             <div class="stat-bar">
-                <span class="stat-bar-label">${lvl.name}</span>
+                <span class="stat-bar-label">${escapeHtml(lvl.name)}</span>
                 <div class="stat-bar-track">
-                    <div class="stat-bar-fill" style="width:${Math.min(100, (lvl.minPoints / 5000) * 100)}%;background:var(--gradient)"></div>
+                    <div class="stat-bar-fill" style="width:${Math.min(100, (lvl.minPoints / maxPoints) * 100)}%;background:var(--gradient)"></div>
                 </div>
                 <span class="stat-bar-value">${formatNumber(lvl.minPoints)} pts</span>
             </div>
@@ -55,8 +58,8 @@ async function loadRewards() {
         const card = document.createElement('div');
         card.className = 'feature-card';
         card.style.padding = '20px';
-        const safeName = (r.name || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
-        const safeDesc = (r.description || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+        const safeName = escapeHtml(r.name);
+        const safeDesc = escapeHtml(r.description);
         card.innerHTML = `
             <div class="flex-between mb-8">
                 <h3 style="font-size:16px">${safeName}</h3>

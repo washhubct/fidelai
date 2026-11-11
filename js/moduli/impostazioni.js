@@ -1,17 +1,22 @@
 // FidelAI — Impostazioni Module
-import { db, auth, firebase, storage } from '../firebase-config.js';
+import { db, auth, firebase, storage, callFn } from '../firebase-config.js';
 import state from '../state.js';
-import { showToast } from '../utils.js';
+import { showToast, formatDate, escapeHtml, once } from '../utils.js';
 
 const WHITELABEL_PLANS = ['pro', 'business'];
+const API_PLANS = ['business'];
 const DEFAULT_PRIMARY_COLOR = '#6366F1';
 const MAX_LOGO_BYTES = 1024 * 1024;
 
 export function initImpostazioni() {
     loadSettings();
+    loadApiKeys();
+    checkUrlPaymentStatus();
+    // Il modulo viene re-inizializzato a ogni navigazione: i form si agganciano una volta sola.
+    if (!once('impostazioni')) return;
     setupSettingsForms();
     setupBrandingForm();
-    checkUrlPaymentStatus();
+    setupApiKeys();
 }
 
 // Controlla se l'utente arriva da un redirect di pagamento
@@ -387,4 +392,85 @@ async function changePassword(e) {
 function setVal(id, value) {
     const el = document.getElementById(id);
     if (el) el.value = value || '';
+}
+
+// ---- Integrazioni: chiavi API ----
+
+async function loadApiKeys() {
+    const list = document.getElementById('api-keys-list');
+    if (!list || !state.merchantId) return;
+
+    const allowed = API_PLANS.includes(state.merchantData?.plan || 'starter');
+    document.getElementById('api-keys-upsell').style.display = allowed ? 'none' : 'block';
+    document.getElementById('api-keys-content').style.display = allowed ? '' : 'none';
+    if (!allowed) return;
+
+    try {
+        const { keys } = await callFn('listApiKeys');
+        const active = keys.filter(k => !k.revoked);
+        if (active.length === 0) {
+            list.innerHTML = '<p style="color:var(--gray-400)">Nessuna chiave attiva.</p>';
+            return;
+        }
+        list.innerHTML = active.map(k => `
+            <div class="flex-between" style="gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-200)">
+                <div>
+                    <strong>${escapeHtml(k.label)}</strong> <code>${escapeHtml(k.hint)}</code><br>
+                    <span style="color:var(--gray-500)">Creata il ${formatDate(k.createdAt)} · ${k.lastUsedAt ? 'ultimo uso ' + formatDate(k.lastUsedAt) : 'mai usata'}</span>
+                </div>
+                <button class="btn btn-ghost btn-sm btn-revoke-key" data-id="${escapeHtml(k.id)}" data-label="${escapeHtml(k.label)}" style="color:var(--danger)">Revoca</button>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<p style="color:var(--danger)">Impossibile caricare le chiavi.</p>';
+    }
+}
+
+function setupApiKeys() {
+    document.getElementById('api-key-form')?.addEventListener('submit', createApiKey);
+
+    document.getElementById('api-keys-list')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-revoke-key');
+        if (!btn) return;
+        if (!confirm(`Revocare la chiave "${btn.dataset.label}"?\nL'integrazione che la usa smetterà subito di funzionare.`)) return;
+        btn.disabled = true;
+        try {
+            await callFn('revokeApiKey', { id: btn.dataset.id });
+            showToast('Chiave revocata');
+            loadApiKeys();
+        } catch (error) {
+            showToast('Errore: ' + error.message, 'error');
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('api-key-copy')?.addEventListener('click', async () => {
+        const key = document.getElementById('api-key-new-value').textContent;
+        try {
+            await navigator.clipboard.writeText(key);
+            showToast('Chiave copiata');
+        } catch {
+            showToast('Copia non riuscita: seleziona la chiave e copiala a mano.', 'error');
+        }
+    });
+}
+
+async function createApiKey(e) {
+    e.preventDefault();
+    const btn = document.getElementById('api-key-create');
+    const label = document.getElementById('api-key-label').value.trim();
+
+    btn.disabled = true;
+    try {
+        // Il server salva solo l'hash: la chiave in chiaro esiste solo in questa risposta.
+        const { key } = await callFn('createApiKey', { label });
+        document.getElementById('api-key-new-value').textContent = key;
+        document.getElementById('api-key-new').style.display = 'block';
+        e.target.reset();
+        loadApiKeys();
+    } catch (error) {
+        showToast('Errore: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
 }

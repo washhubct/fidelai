@@ -1,7 +1,7 @@
 // FidelAI — Analytics Module
 import { db } from '../firebase-config.js';
 import state from '../state.js';
-import { formatNumber, formatCurrency } from '../utils.js';
+import { formatNumber, formatCurrency, escapeHtml } from '../utils.js';
 
 export function initAnalytics() {
     loadAnalyticsData();
@@ -71,7 +71,7 @@ function renderTopClients() {
 
     container.innerHTML = sorted.map(c => `
         <div class="stat-bar">
-            <span class="stat-bar-label">${c.name}</span>
+            <span class="stat-bar-label">${escapeHtml(c.name || c.phone || '-')}</span>
             <div class="stat-bar-track">
                 <div class="stat-bar-fill" style="width:${((c.totalPoints || 0) / maxPoints) * 100}%;background:var(--gradient)"></div>
             </div>
