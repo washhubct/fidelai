@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fidelai-card-v8';
+const CACHE_NAME = 'fidelai-card-v9';
 
 const STATIC_ASSETS = [
   '/card.html',
@@ -32,6 +32,8 @@ self.addEventListener('activate', event => {
 
 // Fetch: cache-first for static assets, network-first for API calls
 self.addEventListener('fetch', event => {
+  // Solo GET: le POST verso Cloud Functions non vanno né lette né scritte in cache
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
   // Network-first for Firestore / API requests

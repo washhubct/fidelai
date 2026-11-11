@@ -554,6 +554,7 @@ exports.stripeWebhook = onRequest(
         maxInstances: 10,
     },
     async (req, res) => {
+        const db = getDb();
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
             return;
@@ -749,6 +750,7 @@ exports.weeklyReport = onSchedule(
         maxInstances: 1,
     },
     async () => {
+        const db = getDb();
         const merchantsSnap = await db
             .collection("merchants")
             .where("onboardingCompleted", "==", true)
@@ -858,6 +860,7 @@ exports.inactiveCustomerAlert = onSchedule(
         maxInstances: 1,
     },
     async () => {
+        const db = getDb();
         const merchantsSnap = await db.collection("merchants").get();
 
         if (merchantsSnap.empty) {

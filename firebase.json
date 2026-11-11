@@ -8,7 +8,13 @@
             "storage.rules",
             "functions/**",
             "**/.*",
-            "**/node_modules/**"
+            "**/node_modules/**",
+            "**/*.md",
+            "scripts/**",
+            "graphify-out/**",
+            "memory/**",
+            "**/package*.json",
+            "**/*.py"
         ],
         "rewrites": [
             {
@@ -20,7 +26,10 @@
             {
                 "source": "**/*.@(js|html|json)",
                 "headers": [
-                    { "key": "Cache-Control", "value": "public, max-age=60, must-revalidate" }
+                    {
+                        "key": "Cache-Control",
+                        "value": "public, max-age=60, must-revalidate"
+                    }
                 ]
             }
         ]
