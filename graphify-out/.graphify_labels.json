@@ -1,1 +1,20 @@
-{"0": "Dashboard Operatore e AI Agent", "1": "Firebase Config e Auth", "2": "Card Cliente White-Label", "3": "Cloud Functions Core (AI, Stripe, Email)", "4": "Dipendenze Functions", "5": "External API Bridge Wash Hub", "6": "Script Admin Produzione", "7": "Admin Panel SaaS", "8": "Modulo Clienti CRM", "9": "Docs, Privacy e Firestore Rules", "10": "Termini, GDPR e Legale", "11": "API Reference e Pricing", "12": "Infra, Deploy e Tenant Wash Hub", "13": "Modulo Campagne", "14": "Pagine Chi Siamo e Contatti", "15": "PWA Manifest FidelAI", "16": "Modello Dati Firestore", "17": "Blog", "18": "Changelog", "19": "Brand FidelAI (icone)", "20": "Service Worker Card", "21": "Brand Wash Hub (logo)", "22": "Firebase Config Duplicata"}
+{
+  "1": "Firebase Config e Auth",
+  "3": "Cloud Functions Core (AI, Stripe, Email)",
+  "4": "Dipendenze Functions",
+  "6": "Script Admin Produzione",
+  "7": "Admin Panel SaaS",
+  "9": "Docs, Privacy e Firestore Rules",
+  "10": "Termini, GDPR e Legale",
+  "11": "API Reference e Pricing",
+  "12": "Infra, Deploy e Tenant Wash Hub",
+  "14": "Pagine Chi Siamo e Contatti",
+  "15": "PWA Manifest FidelAI",
+  "16": "Modello Dati Firestore",
+  "17": "Blog",
+  "18": "Changelog",
+  "19": "Brand FidelAI (icone)",
+  "20": "Service Worker Card",
+  "21": "Brand Wash Hub (logo)",
+  "22": "Firebase Config Duplicata"
+}
