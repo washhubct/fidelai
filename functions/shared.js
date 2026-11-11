@@ -9,7 +9,9 @@ let _admin, _db;
 const getAdmin = () => {
     if (!_admin) {
         _admin = require("firebase-admin");
-        if (!_admin.apps.length) _admin.initializeApp();
+        // firebase-functions registra una sua app con nome proprio per verificare i token
+        // delle callable: guardare apps.length non basta, serve l'app di default.
+        try { _admin.app(); } catch { _admin.initializeApp(); }
     }
     return _admin;
 };
