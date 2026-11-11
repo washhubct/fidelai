@@ -14,6 +14,7 @@ const {
 
 const HttpsError = functionsV1.https.HttpsError;
 const MAX_API_KEYS = 5;
+const API_PLANS = ["business"];
 
 function merchantCallable(handler) {
     return functionsV1
@@ -135,6 +136,8 @@ const keysCol = () => getDb().collection("apiKeys");
 
 /** createApiKey — { label } → { key } (mostrata UNA volta: salviamo solo l'hash) */
 exports.createApiKey = merchantCallable(async (data, merchantId) => {
+    const merchant = (await getDb().doc(`merchants/${merchantId}`).get()).data() || {};
+    if (!API_PLANS.includes(merchant.plan)) throw new ApiError("Le integrazioni API sono incluse nel piano Business.");
     const label = String(data.label || "").trim().slice(0, 40) || "Integrazione";
     const existing = await keysCol().where("merchantId", "==", merchantId).get();
     if (existing.docs.filter((d) => d.data().revoked !== true).length >= MAX_API_KEYS) {

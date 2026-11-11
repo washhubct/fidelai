@@ -268,7 +268,7 @@ exports.sendCampaign = functionsV1
         }
 
         const merchantId = context.auth.uid;
-        const { campaignId } = data || {};
+        const { campaignId, includeRecipients } = data || {};
 
         if (!campaignId || typeof campaignId !== "string") {
             throw new functionsV1.https.HttpsError("invalid-argument", "campaignId non valido.");
@@ -326,13 +326,21 @@ exports.sendCampaign = functionsV1
             preparedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
         });
 
-        return {
+        const result = {
             status: "ready",
             delivered: false,
             sent: 0,
             segmentSize: inSegment.length,
             audience: audience.length,
         };
+        // Elenco per l'export dalla dashboard: solo chi ha dato il consenso al canale.
+        if (includeRecipients === true) {
+            result.recipients = audience.map((doc) => {
+                const c = doc.data();
+                return { name: c.name || "", phone: c.phone || "", email: c.email || "" };
+            });
+        }
+        return result;
     });
 
 // Auto-generate insights
@@ -478,22 +486,32 @@ exports.createCheckoutSession = functionsV1
         const merchantId = context.auth.uid;
         const customerEmail = context.auth.token.email;
 
+        // Un secondo Checkout creerebbe un secondo abbonamento (doppio addebito):
+        // chi ha già un abbonamento vivo non passa da qui.
+        const merchant = (await getDb().doc(`merchants/${merchantId}`).get()).data() || {};
+        if (merchant.subscriptionFree === true) {
+            throw new functionsV1.https.HttpsError("failed-precondition", "Account interno: non serve un abbonamento.");
+        }
+        // Lo stato arriva dal webhook dopo il checkout: finché non risulta chiuso, l'abbonamento è vivo.
+        const lapsed = ["canceled", "unpaid", "incomplete_expired"].includes(merchant.stripeSubscriptionStatus);
+        if (merchant.stripeSubscriptionId && !lapsed) {
+            throw new functionsV1.https.HttpsError("failed-precondition", "Hai già un abbonamento attivo. Per cambiare piano contattaci: lo aggiorniamo senza doppi addebiti.");
+        }
+
         const stripe = new (getStripe())(process.env.STRIPE_SECRET_KEY);
 
         const baseUrl = "https://fidelai.it";
+
+        const subscriptionData = { metadata: { merchantId, planId } };
+        // La prova gratuita vale solo per il primo abbonamento.
+        if (!merchant.stripeSubscriptionId) subscriptionData.trial_period_days = 14;
 
         try {
             const session = await stripe.checkout.sessions.create({
                 mode: "subscription",
                 payment_method_types: ["card"],
-                customer_email: customerEmail,
-                subscription_data: {
-                    trial_period_days: 14,
-                    metadata: {
-                        merchantId,
-                        planId,
-                    },
-                },
+                ...(merchant.stripeCustomerId ? { customer: merchant.stripeCustomerId } : { customer_email: customerEmail }),
+                subscription_data: subscriptionData,
                 line_items: [
                     {
                         price: plan.priceId,
