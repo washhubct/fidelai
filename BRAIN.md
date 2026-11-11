@@ -25,6 +25,7 @@
 - Card white-label Wash Hub: https://card.washhub.it (stesso hosting Firebase, hostname-aware).
 - Deploy frontend = `firebase deploy --only hosting` (il push GitHub NON aggiorna fidelai.it); fallback headless `ACCESS_TOKEN=$(gcloud auth application-default print-access-token) node scripts/deploy-hosting.js`.
 - Deploy backend = `firebase deploy --only functions` (da `functions/`).
+- Account Firebase CLI: proprietario di `fideliai-app` è `amministrazione@avrlogisticarl.com` (impostato per questa cartella con `firebase login:use`); `guido@last-mile.it` ha Editor + Firebase Admin (Owner richiede invito da console). Login headless: `firebase login --no-localhost`, Guido incolla il codice dal telefono.
 - Script admin (`scripts/*.js`) richiedono `gcloud auth application-default login` + `gcloud config set project fideliai-app`.
 - Secrets Cloud Functions (Secret Manager, solo nomi): `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `WASHHUB_BRIDGE_SECRET`.
 - Lato dashdebug il bridge usa `FIDELAI_BRIDGE_SECRET` (stesso valore di `WASHHUB_BRIDGE_SECRET`).

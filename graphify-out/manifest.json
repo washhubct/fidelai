@@ -174,16 +174,16 @@
     "semantic_hash": "8de772b2b5949028119793c459d223a8"
   },
   "api.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.3965352,
-    "ast_hash": "97d2a3fa05f2192cd2d6734ef2214fe1",
-    "semantic_hash": "97d2a3fa05f2192cd2d6734ef2214fe1"
+    "mtime": 1794332411.344503,
+    "seen": 1794367804.138433,
+    "ast_hash": "a2569f53a0faf7c815e108222d55736c",
+    "semantic_hash": ""
   },
   "blog.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.396536,
-    "ast_hash": "d6e1a7308fde1a26ca12ebeb208ab535",
-    "semantic_hash": "d6e1a7308fde1a26ca12ebeb208ab535"
+    "mtime": 1794332411.3457086,
+    "seen": 1794367804.138434,
+    "ast_hash": "9ead2fe7bd333dbb19c31c8efeb5a7ea",
+    "semantic_hash": ""
   },
   "card.html": {
     "mtime": 1793016256.4076934,
@@ -192,22 +192,22 @@
     "semantic_hash": "4adc515badce4a67e4c8bb3d4a2a31be"
   },
   "changelog.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.396537,
-    "ast_hash": "200e122896a2a69f82bc6b5814eb53c6",
-    "semantic_hash": "200e122896a2a69f82bc6b5814eb53c6"
+    "mtime": 1794332411.3451314,
+    "seen": 1794367804.138436,
+    "ast_hash": "938768584f2759de3795f71c8b653b04",
+    "semantic_hash": ""
   },
   "chi-siamo.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.396537,
-    "ast_hash": "b5490cb62ab92ce9d5d5f70e6eee27e7",
-    "semantic_hash": "b5490cb62ab92ce9d5d5f70e6eee27e7"
+    "mtime": 1794332411.3449242,
+    "seen": 1794367804.138436,
+    "ast_hash": "1d12c3d6a09c5359b319c6d9f0867112",
+    "semantic_hash": ""
   },
   "contatti.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.396537,
-    "ast_hash": "b7f47a35414c97a90c897f420d201094",
-    "semantic_hash": "b7f47a35414c97a90c897f420d201094"
+    "mtime": 1794332411.3463528,
+    "seen": 1794367804.138437,
+    "ast_hash": "73afb0a492d85580220e61685799659b",
+    "semantic_hash": ""
   },
   "dashboard.html": {
     "mtime": 1781884867.0,
@@ -216,16 +216,16 @@
     "semantic_hash": "6d725bd768735379fb02e5abc21bf437"
   },
   "docs.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.396538,
-    "ast_hash": "01f9e2eba178dbca6e0d8a9f92d8f866",
-    "semantic_hash": "01f9e2eba178dbca6e0d8a9f92d8f866"
+    "mtime": 1794332411.3454416,
+    "seen": 1794367804.138438,
+    "ast_hash": "fe19857be56425a137b5e6e89f5e1313",
+    "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1781885468.0,
-    "seen": 1793657615.396539,
-    "ast_hash": "a96c7aef7cd1f78725c3b8be7173ec92",
-    "semantic_hash": "a96c7aef7cd1f78725c3b8be7173ec92"
+    "mtime": 1794332411.3441248,
+    "seen": 1794367804.138438,
+    "ast_hash": "dedc73066123fe83ee34d5ed2e686391",
+    "semantic_hash": ""
   },
   "memory/_archive/MEMORY.md": {
     "mtime": 1793657019.8930867,
@@ -240,16 +240,16 @@
     "semantic_hash": "b741c709fcb1cbdcbc9773ea36984eed"
   },
   "privacy.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.39654,
-    "ast_hash": "31f187367f386699c81a9ad6f2b0006a",
-    "semantic_hash": "31f187367f386699c81a9ad6f2b0006a"
+    "mtime": 1794332411.345845,
+    "seen": 1794367804.13844,
+    "ast_hash": "10c756ffad6143ee9aeae1735e1ebca5",
+    "semantic_hash": ""
   },
   "terms.html": {
-    "mtime": 1776705779.0,
-    "seen": 1793657615.39654,
-    "ast_hash": "71fa53e1c467d5945b07bea3581daf53",
-    "semantic_hash": "71fa53e1c467d5945b07bea3581daf53"
+    "mtime": 1794332411.3461103,
+    "seen": 1794367804.1384408,
+    "ast_hash": "4b5dc309ea0344f899abd760a48fac24",
+    "semantic_hash": ""
   },
   "brand/logo-autolavaggi-scontornato.png": {
     "mtime": 1781881971.0,
