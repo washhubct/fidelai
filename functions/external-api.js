@@ -1,116 +1,68 @@
 /**
  * External API — endpoint HTTPS service-to-service per merchant integrati
- * (es. Wash Hub gestionale → FidelAI) + endpoint pubblici per la card
- * cliente (attivazione con consensi, riscatto premi via codice 4 cifre).
+ * (es. Wash Hub gestionale → FidelAI).
  *
- * Auth: header `Authorization: Bearer <WASHHUB_BRIDGE_SECRET>` confrontato in
- * tempo costante. Usa onRequest (non onCall) perché i chiamanti sono Cloud
- * Functions di altri progetti Firebase, non utenti Firebase Auth.
+ * Auth: header `Authorization: Bearer <chiave>`. Due tipi di chiave:
+ *  - chiave per-merchant `fk_...` generata dalla dashboard (collection apiKeys,
+ *    salvata solo come hash): vale solo per il merchant che l'ha creata;
+ *  - WASHHUB_BRIDGE_SECRET (storica): vale solo per i merchant in
+ *    LEGACY_BRIDGE_MERCHANTS.
+ * Usa onRequest (non onCall) perché i chiamanti sono Cloud Functions di altri
+ * progetti Firebase, non utenti Firebase Auth.
+ *
+ * Gli endpoint pubblici della card cliente stanno in card-api.js.
  *
  * Region: europe-west1 (coerente con il resto del progetto).
  */
 
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
-const crypto = require("crypto");
+const {
+    getDb, FieldValue, PENDING_DAYS, ApiError,
+    resolveMerchantId, normalizeCustomerId, safeEqual, hashToken, computeLevel, applyRedeemCode,
+} = require("./shared");
 
 const washhubBridgeSecret = defineSecret("WASHHUB_BRIDGE_SECRET");
 
-const CONSENT_PRIVACY_VERSION = "1.0";
-const REDEEM_CODE_TTL_MS = 5 * 60 * 1000;
-const REDEEM_CODE_MAX_RETRIES = 20;
+// La chiave storica condivisa apre solo questi merchant (Wash Hub).
+const LEGACY_BRIDGE_MERCHANTS = ["TSfZHShvSqOu4gPGA9JcV0IqmjI2"];
 
-let _admin, _db;
-const getAdmin = () => {
-    if (!_admin) {
-        _admin = require("firebase-admin");
-        if (!_admin.apps.length) _admin.initializeApp();
-    }
-    return _admin;
-};
-const getDb = () => { if (!_db) _db = getAdmin().firestore(); return _db; };
-const FieldValue = () => getAdmin().firestore.FieldValue;
-const Timestamp = () => getAdmin().firestore.Timestamp;
-
-function verifyBearer(req, expected) {
+function bearerToken(req) {
     const auth = req.get("Authorization") || "";
-    if (!auth.startsWith("Bearer ")) return false;
-    const token = auth.slice(7).trim();
-    if (!token || !expected) return false;
-    const a = Buffer.from(token);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
+    return auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
 }
 
-async function resolveMerchantId(input) {
-    if (!input || typeof input !== "string") return null;
-    if (input.length >= 20 && /^[A-Za-z0-9]+$/.test(input)) return input;
-    const aliasDoc = await getDb().collection("merchantAliases").doc(input).get();
-    return aliasDoc.exists ? aliasDoc.data().merchantId : null;
-}
-
-function normalizeCustomerId(raw) {
-    if (!raw || typeof raw !== "string") return null;
-    const digits = raw.replace(/\D/g, "");
-    if (!digits) return null;
-    return digits.startsWith("39") && digits.length > 10 ? digits.slice(2) : digits;
-}
-
-function isValidEmail(raw) {
-    if (typeof raw !== "string") return false;
-    const s = raw.trim();
-    if (s.length < 5 || s.length > 120) return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
-
-const PENDING_DAYS = 30;
-
-// Carica come earn i lavaggi pagati prima dell'attivazione (pendingEarns degli ultimi PENDING_DAYS),
-// con refId idempotente, poi li cancella. Ritorna i punti caricati.
-async function creditPendingEarns(merchantId, cid) {
-    const db = getDb();
-    const pend = await db.collection(`merchants/${merchantId}/pendingEarns`).where("customerId", "==", cid).get();
-    if (pend.empty) return 0;
-    const merchantSnap = await db.doc(`merchants/${merchantId}`).get();
-    const pointsPerEuro = merchantSnap.exists ? (merchantSnap.data().loyaltyConfig?.pointsPerEuro ?? 1) : 1;
-    const limite = Date.now() - PENDING_DAYS * 864e5;
-    const customerRef = db.doc(`merchants/${merchantId}/customers/${cid}`);
-    const transCol = db.collection(`merchants/${merchantId}/transactions`);
-    let tot = 0;
-    for (const p of pend.docs) {
-        const d = p.data();
-        const ts = d.createdAt?.toMillis ? d.createdAt.toMillis() : 0;
-        if (ts && ts < limite) { await p.ref.delete(); continue; }
-        if (d.refId) {
-            const dup = await transCol.where("refId", "==", d.refId).where("type", "==", "earn").limit(1).get();
-            if (!dup.empty) { await p.ref.delete(); continue; }
-        }
-        const points = Math.round(Number(d.amount || 0) * pointsPerEuro);
-        if (points <= 0) { await p.ref.delete(); continue; }
-        await db.runTransaction(async (tx) => {
-            const c = (await tx.get(customerRef)).data() || {};
-            tx.set(transCol.doc(), {
-                customerId: cid, customerName: c.name || "", amount: Number(d.amount), points, type: "earn",
-                sedeId: d.sedeId || null, refId: d.refId || null, notes: d.notes || null,
-                createdAt: FieldValue().serverTimestamp(), source: "pending-on-activation",
-            });
-            tx.update(customerRef, {
-                totalPoints: (c.totalPoints || 0) + points, visits: (c.visits || 0) + 1,
-                lastVisit: FieldValue().serverTimestamp(), updatedAt: FieldValue().serverTimestamp(),
-            });
-            tx.delete(p.ref);
-        });
-        tot += points;
+/**
+ * Risolve il merchant del body e verifica che la chiave Bearer lo autorizzi.
+ * Ritorna il merchantId oppure null (il chiamante risponde 401, senza dire
+ * se il merchant esiste).
+ */
+async function authorizeMerchant(req) {
+    const token = bearerToken(req);
+    if (!token) return null;
+    const merchantId = await resolveMerchantId((req.body || {}).merchant);
+    if (!merchantId) return null;
+    if (safeEqual(token, washhubBridgeSecret.value())) {
+        return LEGACY_BRIDGE_MERCHANTS.includes(merchantId) ? merchantId : null;
     }
-    return tot;
+    if (!token.startsWith("fk_")) return null;
+    const keySnap = await getDb().doc(`apiKeys/${hashToken(token)}`).get();
+    if (!keySnap.exists) return null;
+    const key = keySnap.data();
+    if (key.revoked === true || key.merchantId !== merchantId) return null;
+    const last = key.lastUsedAt?.toMillis ? key.lastUsedAt.toMillis() : 0;
+    if (Date.now() - last > 3600e3) {
+        await keySnap.ref.update({ lastUsedAt: FieldValue().serverTimestamp() }).catch(() => {});
+    }
+    return merchantId;
 }
 
 function badRequest(res, msg) { res.status(400).json({ ok: false, error: msg }); }
 function unauthorized(res) { res.status(401).json({ ok: false, error: "unauthorized" }); }
 function serverError(res, err) {
+    if (err instanceof ApiError) return res.status(err.status).json({ ok: false, error: err.message });
     console.error("external-api error:", err);
-    res.status(500).json({ ok: false, error: err.message || "internal" });
+    res.status(500).json({ ok: false, error: "internal" });
 }
 
 const baseOpts = {
@@ -119,36 +71,6 @@ const baseOpts = {
     maxInstances: 10,
     cors: false,
 };
-
-const publicOpts = {
-    region: "europe-west1",
-    maxInstances: 10,
-    cors: false,
-};
-
-// Rate limit in-memory per IP. In-memory è OK per bloccare spam grossolano.
-const _rateBucket = new Map();
-function rateLimitOk(ip, limit, windowMs) {
-    const now = Date.now();
-    const arr = _rateBucket.get(ip) || [];
-    const recent = arr.filter((t) => now - t < windowMs);
-    if (recent.length >= limit) return false;
-    recent.push(now);
-    _rateBucket.set(ip, recent);
-    return true;
-}
-
-function setCorsHeaders(res) {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-}
-
-function getClientIp(req) {
-    return (req.headers["x-forwarded-for"] || req.ip || "unknown")
-        .toString().split(",")[0].trim();
-}
 
 // ============================================================================
 // SERVICE-TO-SERVICE (Bearer protetto) — chiamati dal bridge dashdebug
@@ -167,11 +89,10 @@ function getClientIp(req) {
 exports.externalSyncCustomer = onRequest(baseOpts, async (req, res) => {
     try {
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
 
-        const { merchant, customerId, name, phone, sedeId, vetture } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const { customerId, name, phone, sedeId, vetture } = req.body || {};
         const cid = normalizeCustomerId(customerId || phone);
         if (!cid) return badRequest(res, "customerId/phone mancante o non valido");
 
@@ -203,11 +124,10 @@ exports.externalSyncCustomer = onRequest(baseOpts, async (req, res) => {
 exports.externalRecordTransaction = onRequest(baseOpts, async (req, res) => {
     try {
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
 
-        const { merchant, customerId, amount, type = "earn", sedeId, refId, notes, pointsOverride } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const { customerId, amount, type = "earn", sedeId, refId, notes, pointsOverride } = req.body || {};
         const cid = normalizeCustomerId(customerId);
         if (!cid) return badRequest(res, "customerId mancante");
         const amt = Number(amount);
@@ -291,255 +211,68 @@ exports.externalRecordTransaction = onRequest(baseOpts, async (req, res) => {
 exports.validateAndApplyRedeem = onRequest(baseOpts, async (req, res) => {
     try {
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
-
-        const { merchant, code } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non trovato");
-        const cleanCode = String(code || "").replace(/\D/g, "");
-        if (cleanCode.length !== 4) return badRequest(res, "codice non valido (4 cifre)");
-
-        const db = getDb();
-        const codeRef = db.doc(`merchants/${merchantId}/redeemCodes/${cleanCode}`);
-        const transCol = db.collection(`merchants/${merchantId}/transactions`);
-
-        const result = await db.runTransaction(async (tx) => {
-            const codeSnap = await tx.get(codeRef);
-            if (!codeSnap.exists) throw new Error("Codice non trovato");
-            const codeData = codeSnap.data();
-            if (codeData.consumed) throw new Error("Codice già utilizzato");
-            const now = Date.now();
-            const exp = codeData.expiresAt?.toMillis?.() ?? 0;
-            if (!exp || now > exp) throw new Error("Codice scaduto");
-
-            const customerRef = db.doc(`merchants/${merchantId}/customers/${codeData.customerId}`);
-            const cSnap = await tx.get(customerRef);
-            if (!cSnap.exists) throw new Error("Cliente non trovato");
-            const cData = cSnap.data();
-            const currentPoints = cData.totalPoints || 0;
-            const cost = Number(codeData.pointsCost) || 0;
-            if (currentPoints < cost) throw new Error(`Punti insufficienti (${currentPoints}/${cost})`);
-
-            const newPoints = currentPoints - cost;
-            const transRef = transCol.doc();
-            tx.set(transRef, {
-                customerId: codeData.customerId,
-                customerName: cData.name || "",
-                amount: 0,
-                points: cost,
-                type: "redeem",
-                rewardId: codeData.rewardId,
-                rewardName: codeData.rewardName,
-                refId: `redeemCode:${cleanCode}`,
-                createdAt: FieldValue().serverTimestamp(),
-                source: "redeem-code",
-            });
-            tx.update(customerRef, {
-                totalPoints: newPoints,
-                updatedAt: FieldValue().serverTimestamp(),
-            });
-            tx.update(codeRef, {
-                consumed: true,
-                consumedAt: FieldValue().serverTimestamp(),
-                transactionId: transRef.id,
-            });
-
-            return {
-                transactionId: transRef.id,
-                customerId: codeData.customerId,
-                customerName: cData.name || "",
-                rewardName: codeData.rewardName,
-                pointsCost: cost,
-                newPoints,
-            };
-        });
-
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
+        const result = await applyRedeemCode(merchantId, (req.body || {}).code, "redeem-code");
         res.json({ ok: true, ...result });
     } catch (err) {
-        // Errori di validazione → 400; tutto il resto → 500
-        const msg = err.message || "internal";
-        const isValidation = /codice|cliente non trovato|punti insufficienti/i.test(msg);
-        if (isValidation) return res.status(400).json({ ok: false, error: msg });
-        serverError(res, err);
-    }
-});
-
-// ============================================================================
-// PUBLIC (no Bearer, rate-limited) — chiamati direttamente dalla card.html
-// ============================================================================
-
-/**
- * POST selfActivateCard
- *
- * Endpoint pubblico (no Bearer) per il cliente che compila il form di
- * attivazione sulla card. Richiede TUTTI i consensi accettati + email
- * valida obbligatoria. Crea (o aggiorna) il customer con
- * cardAttivata=true. Da questo momento il bridge inizia a caricare punti
- * automaticamente sulle prenotazioni saldate dal gestionale.
- *
- * Body: {
- *   merchant, name, phone, email,
- *   consentPrivacy: true, consentSms: true, consentEmail: true
- * }
- */
-exports.selfActivateCard = onRequest(publicOpts, async (req, res) => {
-    setCorsHeaders(res);
-    try {
-        if (req.method === "OPTIONS") { res.status(204).send(""); return; }
-        if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-
-        const ip = getClientIp(req);
-        if (!rateLimitOk(ip, 5, 60 * 1000)) {
-            return res.status(429).json({ ok: false, error: "rate-limited, riprova fra un minuto" });
-        }
-
-        const { merchant, name, phone, email, consentPrivacy, consentSms, consentEmail } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non valido");
-        const cid = normalizeCustomerId(phone);
-        if (!cid || cid.length < 9 || cid.length > 11) return badRequest(res, "Numero di telefono non valido");
-        const cleanName = String(name || "").trim();
-        if (cleanName.length < 2 || cleanName.length > 60) return badRequest(res, "Nome non valido");
-        const cleanEmail = String(email || "").trim().toLowerCase();
-        if (!isValidEmail(cleanEmail)) return badRequest(res, "Email non valida");
-        if (consentPrivacy !== true) return badRequest(res, "Consenso privacy obbligatorio");
-        // Marketing SMS/email: FACOLTATIVI (GDPR, consenso libero — 16/10/2026). Obbligatoria solo la privacy.
-
-        const ref = getDb().doc(`merchants/${merchantId}/customers/${cid}`);
-        const snap = await ref.get();
-        const now = FieldValue().serverTimestamp();
-
-        const consents = {
-            consensoPrivacy: { accepted: true, at: now, version: CONSENT_PRIVACY_VERSION },
-            consensoSMS: { accepted: consentSms === true, at: now },
-            consensoEmail: { accepted: consentEmail === true, at: now },
-        };
-
-        if (snap.exists && snap.data().cardAttivata === true) {
-            // Già attivata → idempotente, aggiorna solo eventuali campi cambiati
-            await ref.set({
-                name: cleanName,
-                email: cleanEmail,
-                updatedAt: now,
-            }, { merge: true });
-            return res.json({ ok: true, idempotent: true, customerId: cid });
-        }
-
-        const payload = {
-            name: cleanName,
-            phone: cid,
-            email: cleanEmail,
-            cardAttivata: true,
-            attivataAt: now,
-            updatedAt: now,
-            ...consents,
-        };
-        if (!snap.exists) {
-            payload.totalPoints = 0;
-            payload.visits = 0;
-            payload.createdAt = now;
-        }
-        payload.source = "self-activation";
-
-        await ref.set(payload, { merge: true });
-        let pendingCredited = 0;
-        try { pendingCredited = await creditPendingEarns(merchantId, cid); }
-        catch (e) { console.error("[selfActivateCard] pending earns", cid, e); }
-        res.json({ ok: true, merchantId, customerId: cid, created: !snap.exists, pendingCredited });
-    } catch (err) {
         serverError(res, err);
     }
 });
 
 /**
- * POST generateRedeemCode
- *
- * Endpoint pubblico chiamato dalla card.html quando il cliente clicca
- * "Riscatta" su un premio. Genera codice 4 cifre valido 5 min, salvato in
- * merchants/{m}/redeemCodes/{code}.
- *
- * Body: { merchant, customerId, rewardId }
+ * POST externalGetCustomer — { merchant, customerId | phone }
+ * → { found, customer: { id, name, phone, email, cardAttivata, totalPoints, visits, level, lastVisit }, transactions: [...] }
+ * Lookup cliente per il gestionale: sostituisce la lettura diretta di Firestore.
  */
-exports.generateRedeemCode = onRequest(publicOpts, async (req, res) => {
-    setCorsHeaders(res);
+exports.externalGetCustomer = onRequest(baseOpts, async (req, res) => {
     try {
-        if (req.method === "OPTIONS") { res.status(204).send(""); return; }
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-
-        const ip = getClientIp(req);
-        if (!rateLimitOk(ip, 10, 60 * 1000)) {
-            return res.status(429).json({ ok: false, error: "rate-limited, riprova fra un minuto" });
-        }
-
-        const { merchant, customerId, rewardId } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non valido");
-        const cid = normalizeCustomerId(customerId);
-        if (!cid) return badRequest(res, "customerId non valido");
-        if (!rewardId || typeof rewardId !== "string") return badRequest(res, "rewardId mancante");
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
+        const { customerId, phone } = req.body || {};
+        const cid = normalizeCustomerId(customerId || phone);
+        if (!cid) return badRequest(res, "customerId/phone mancante o non valido");
 
         const db = getDb();
-        const customerSnap = await db.doc(`merchants/${merchantId}/customers/${cid}`).get();
-        if (!customerSnap.exists) return badRequest(res, "Cliente non trovato");
-        const customer = customerSnap.data();
-        if (customer.cardAttivata !== true) return badRequest(res, "Card non attivata");
+        const [mSnap, cSnap] = await Promise.all([
+            db.doc(`merchants/${merchantId}`).get(),
+            db.doc(`merchants/${merchantId}/customers/${cid}`).get(),
+        ]);
+        const merchant = mSnap.data() || {};
+        const pointsPerEuro = merchant.loyaltyConfig?.pointsPerEuro ?? 1;
+        if (!cSnap.exists) return res.json({ ok: true, found: false, customerId: cid, pointsPerEuro });
 
-        const rewardSnap = await db.doc(`merchants/${merchantId}/rewards/${rewardId}`).get();
-        if (!rewardSnap.exists) return badRequest(res, "Premio non trovato");
-        const reward = rewardSnap.data();
-        if (reward.active === false) return badRequest(res, "Premio non attivo");
-        const cost = Number(reward.pointsCost) || 0;
-        if ((customer.totalPoints || 0) < cost) {
-            return badRequest(res, `Punti insufficienti (${customer.totalPoints || 0}/${cost})`);
-        }
-
-        const codesCol = db.collection(`merchants/${merchantId}/redeemCodes`);
-        const expiresAt = Timestamp().fromMillis(Date.now() + REDEEM_CODE_TTL_MS);
-
-        let code, attempt = 0;
-        while (attempt < REDEEM_CODE_MAX_RETRIES) {
-            attempt++;
-            const candidate = String(Math.floor(1000 + Math.random() * 9000));
-            const ref = codesCol.doc(candidate);
-            const created = await db.runTransaction(async (tx) => {
-                const existing = await tx.get(ref);
-                if (existing.exists) {
-                    const d = existing.data();
-                    const exp = d.expiresAt?.toMillis?.() ?? 0;
-                    if (!d.consumed && exp > Date.now()) return false; // ancora attivo, retry
-                }
-                tx.set(ref, {
-                    code: candidate,
-                    customerId: cid,
-                    customerName: customer.name || "",
-                    rewardId,
-                    rewardName: reward.name || "",
-                    pointsCost: cost,
-                    createdAt: FieldValue().serverTimestamp(),
-                    expiresAt,
-                    consumed: false,
-                });
-                return true;
-            });
-            if (created) { code = candidate; break; }
-        }
-
-        if (!code) {
-            return res.status(503).json({ ok: false, error: "Impossibile generare codice, riprova" });
-        }
-
+        const c = cSnap.data();
+        const transSnap = await db.collection(`merchants/${merchantId}/transactions`)
+            .where("customerId", "==", cid).orderBy("createdAt", "desc").limit(10).get();
         res.json({
             ok: true,
-            code,
-            expiresAt: expiresAt.toMillis(),
-            rewardName: reward.name || "",
-            pointsCost: cost,
+            found: true,
+            pointsPerEuro,
+            customer: {
+                id: cid,
+                name: c.name || "",
+                phone: c.phone || cid,
+                email: c.email || "",
+                cardAttivata: c.cardAttivata === true,
+                totalPoints: c.totalPoints || 0,
+                visits: c.visits || 0,
+                level: computeLevel(c.totalPoints || 0, merchant).name,
+                lastVisit: c.lastVisit?.toMillis ? c.lastVisit.toMillis() : null,
+            },
+            transactions: transSnap.docs.map((d) => {
+                const t = d.data();
+                return {
+                    id: d.id, type: t.type, points: t.points || 0, amount: t.amount || 0,
+                    rewardName: t.rewardName || null, createdAt: t.createdAt?.toMillis ? t.createdAt.toMillis() : null,
+                };
+            }),
         });
     } catch (err) {
         serverError(res, err);
     }
 });
-
 
 /**
  * POST externalGetLoyalty — { merchant }
@@ -550,9 +283,8 @@ exports.generateRedeemCode = onRequest(publicOpts, async (req, res) => {
 exports.externalGetLoyalty = onRequest(baseOpts, async (req, res) => {
     try {
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
-        const merchantId = await resolveMerchantId((req.body || {}).merchant);
-        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
         const db = getDb();
         const m = (await db.doc(`merchants/${merchantId}`).get()).data() || {};
         const rw = await db.collection(`merchants/${merchantId}/rewards`).get();
@@ -568,10 +300,9 @@ exports.externalGetLoyalty = onRequest(baseOpts, async (req, res) => {
 exports.externalSetLoyalty = onRequest(baseOpts, async (req, res) => {
     try {
         if (req.method !== "POST") return res.status(405).json({ ok: false, error: "method" });
-        if (!verifyBearer(req, washhubBridgeSecret.value())) return unauthorized(res);
-        const { merchant, pointsPerEuro, rewards } = req.body || {};
-        const merchantId = await resolveMerchantId(merchant);
-        if (!merchantId) return badRequest(res, "merchant non trovato");
+        const merchantId = await authorizeMerchant(req);
+        if (!merchantId) return unauthorized(res);
+        const { pointsPerEuro, rewards } = req.body || {};
         const db = getDb();
         if (pointsPerEuro !== undefined) {
             const v = Number(pointsPerEuro);

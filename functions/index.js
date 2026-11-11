@@ -7,9 +7,9 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 
 // Lazy-loaded modules (avoid deployment timeout)
-let _admin, _db, _Anthropic, _nodemailer, _Stripe;
-const getAdmin = () => { if (!_admin) { _admin = require("firebase-admin"); _admin.initializeApp(); } return _admin; };
-const getDb = () => { if (!_db) _db = getAdmin().firestore(); return _db; };
+let _Anthropic, _nodemailer, _Stripe;
+// Admin SDK: un solo init condiviso con gli altri moduli (shared.js).
+const { getAdmin, getDb, getLevels } = require("./shared");
 const getAnthropic = () => { if (!_Anthropic) _Anthropic = require("@anthropic-ai/sdk"); return _Anthropic; };
 const getNodemailer = () => { if (!_nodemailer) _nodemailer = require("nodemailer"); return _nodemailer; };
 const getStripe = () => { if (!_Stripe) _Stripe = require("stripe"); return _Stripe; };
@@ -75,8 +75,7 @@ ${bodyHtml}
 <td style="padding:24px 40px;background-color:#f9fafb;text-align:center;border-top:1px solid #e5e7eb;">
 <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;">FidelAI &mdash; La piattaforma di fidelizzazione intelligente</p>
 <p style="margin:0;color:#9ca3af;font-size:11px;">
-<a href="https://app.fidelai.it/settings/notifications" style="color:#6366F1;text-decoration:underline;">Gestisci preferenze email</a> &middot;
-<a href="https://app.fidelai.it/unsubscribe" style="color:#6366F1;text-decoration:underline;">Disiscriviti</a>
+<a href="https://fidelai.it/dashboard.html" style="color:#6366F1;text-decoration:underline;">Apri la dashboard</a> &middot; Per non ricevere pi&ugrave; queste email rispondi a questo messaggio
 </p>
 </td>
 </tr>
@@ -290,76 +289,50 @@ exports.sendCampaign = functionsV1
         if (campaign.status === "completed") {
             throw new functionsV1.https.HttpsError("failed-precondition", "Campagna già completata.");
         }
-
-        // Update status to active
-        await campaignRef.update({ status: "active" });
-
-        // Load target customers based on segment
-        const customersQuery = db.collection(`merchants/${merchantId}/customers`);
-        const segment = campaign.segment || "all";
-
-        const allCustomersSnap = await customersQuery.get();
-        let targetCustomers = allCustomersSnap.docs;
-
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        if (segment === "vip") {
-            targetCustomers = targetCustomers.filter((doc) => {
-                const tier = doc.data().tier;
-                return tier === "gold" || tier === "platinum";
-            });
-        } else if (segment === "inactive") {
-            targetCustomers = targetCustomers.filter((doc) => {
-                const lastVisit = doc.data().lastVisit;
-                if (!lastVisit) return true;
-                return lastVisit.toDate() < thirtyDaysAgo;
-            });
-        } else if (segment === "new") {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            targetCustomers = targetCustomers.filter((doc) => {
-                const createdAt = doc.data().createdAt;
-                if (!createdAt) return false;
-                return createdAt.toDate() >= sevenDaysAgo;
-            });
-        }
-        // 'all' -> no filter needed
-
-        const sentCount = targetCustomers.length;
-
-        // Channel-specific handling
         if (campaign.channel === "push") {
-            // FCM simulation - no real push tokens yet
-            console.log(
-                `[sendCampaign] Push simulato per ${sentCount} clienti. Campagna: "${campaign.name}"`
-            );
-            targetCustomers.forEach((doc) => {
-                console.log(
-                    `  -> Push a ${doc.data().name || doc.id}: "${campaign.message}"`
-                );
-            });
-        } else if (campaign.channel === "sms") {
-            // Twilio placeholder - log messages
-            console.log(
-                `[sendCampaign] SMS placeholder per ${sentCount} clienti. Campagna: "${campaign.name}"`
-            );
-            targetCustomers.forEach((doc) => {
-                const phone = doc.data().phone || "N/D";
-                console.log(
-                    `  -> SMS a ${doc.data().name || doc.id} (${phone}): "${campaign.message}"`
-                );
-            });
+            throw new functionsV1.https.HttpsError("failed-precondition", "Le notifiche push non sono ancora disponibili.");
         }
 
-        // Update campaign as completed
+        // Destinatari: segmento + consenso marketing per il canale scelto.
+        const [merchantSnap, allCustomersSnap] = await Promise.all([
+            db.doc(`merchants/${merchantId}`).get(),
+            db.collection(`merchants/${merchantId}/customers`).get(),
+        ]);
+        const segment = campaign.segment || "all";
+        const DAY = 24 * 60 * 60 * 1000;
+        const millis = (t) => (t && t.toMillis ? t.toMillis() : 0);
+        // VIP = dal terzo livello in su (Gold di default), stessa scala della card.
+        const levels = getLevels(merchantSnap.data() || {});
+        const vipMin = (levels[2] || levels[levels.length - 1]).minPoints;
+
+        const inSegment = allCustomersSnap.docs.filter((doc) => {
+            const c = doc.data();
+            if (segment === "vip") return (c.totalPoints || 0) >= vipMin;
+            if (segment === "inactive") return millis(c.lastVisit) < Date.now() - 30 * DAY;
+            if (segment === "new") return millis(c.createdAt) >= Date.now() - 7 * DAY;
+            return true;
+        });
+        const consentField = campaign.channel === "email" ? "consensoEmail" : "consensoSMS";
+        const audience = inSegment.filter((doc) => doc.data()[consentField]?.accepted === true);
+
+        // Nessun provider SMS/push collegato: NON fingiamo l'invio. La campagna
+        // resta "pronta" con il numero reale di destinatari che hanno dato il
+        // consenso; la dashboard permette di esportarli.
         await campaignRef.update({
-            status: "completed",
-            sent: sentCount,
-            completedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            status: "ready",
+            sent: 0,
+            segmentSize: inSegment.length,
+            audience: audience.length,
+            preparedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
         });
 
-        return { sent: sentCount, status: "completed" };
+        return {
+            status: "ready",
+            delivered: false,
+            sent: 0,
+            segmentSize: inSegment.length,
+            audience: audience.length,
+        };
     });
 
 // Auto-generate insights
@@ -671,7 +644,7 @@ exports.stripeWebhook = onRequest(
 exports.onMerchantCreated = onDocumentCreated(
     {
         document: "merchants/{merchantId}",
-        database: "default",
+        database: "(default)",
         region: "europe-west1",
         secrets: [smtpHost, smtpPort, smtpUser, smtpPass],
     },
@@ -687,7 +660,7 @@ exports.onMerchantCreated = onDocumentCreated(
         }
 
         const businessName = merchant.businessName || "il tuo negozio";
-        const dashboardUrl = "https://app.fidelai.it/dashboard";
+        const dashboardUrl = "https://fidelai.it/dashboard.html";
 
         const bodyHtml = `
 <p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.6;">
@@ -801,7 +774,7 @@ exports.weeklyReport = onSchedule(
             const newCustomers = newCustSnap.size;
 
             const businessName = merchant.businessName || "il tuo negozio";
-            const dashboardUrl = "https://app.fidelai.it/dashboard";
+            const dashboardUrl = "https://fidelai.it/dashboard.html";
 
             const kpiCard = (label, value, color) => `
 <td style="width:50%;padding:8px;">
@@ -896,7 +869,7 @@ exports.inactiveCustomerAlert = onSchedule(
             const topThree = newlyInactive.slice(0, 3);
 
             const businessName = merchant.businessName || "il tuo negozio";
-            const dashboardUrl = "https://app.fidelai.it/dashboard/customers";
+            const dashboardUrl = "https://fidelai.it/dashboard.html";
 
             const customerRows = topThree
                 .map((c) => {
@@ -958,4 +931,4 @@ ${moreText}
 );
 
 // External API (service-to-service, es. bridge Wash Hub)
-Object.assign(exports, require("./external-api"));
+Object.assign(exports, require("./external-api"), require("./card-api"), require("./merchant-api"));
