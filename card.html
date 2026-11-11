@@ -6,6 +6,7 @@
     <title>FidelAI — La tua card fedeltà</title>
     <meta name="description" content="La tua card fedeltà digitale: visualizza punti, premi disponibili e storico transazioni.">
     <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
 
     <meta property="og:title" content="FidelAI — La tua card fedeltà">
     <meta property="og:description" content="La tua card fedeltà digitale: visualizza punti, premi disponibili e storico transazioni.">
@@ -17,6 +18,16 @@
     <link rel="apple-touch-icon" href="./icon-192.svg">
     <link rel="manifest" href="manifest.json" id="app-manifest">
     <script>
+        // iPhone/iPad: senza manifest "Aggiungi a Home" salva l'URL corrente (che
+        // contiene il token della card) invece dello start_url generico. L'icona in
+        // Home ha uno storage separato da Safari: senza token nell'URL la card spariva.
+        window.__isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (window.__isIOS) {
+            var iosManifest = document.getElementById('app-manifest');
+            if (iosManifest) iosManifest.remove();
+        }
+
         // Hostname-aware white-label
         window.__hostBrands = {
             'card.washhub.it': {
@@ -65,13 +76,44 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .fa-box{background:rgba(255,255,255,0.10);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:18px;padding:22px;margin:16px 0;color:#fff;}
+        .fa-box h2{margin:0 0 6px;font-size:20px;font-weight:700;}
+        .fa-box .fa-lead{margin:0 0 18px;opacity:0.85;font-size:14px;line-height:1.45;}
+        .fa-label{display:block;margin-bottom:10px;font-size:13px;opacity:0.85;}
+        .fa-input{width:100%;margin-top:4px;padding:12px 14px;border-radius:10px;border:0;font-size:16px;color:#111;outline:none;box-sizing:border-box;}
+        .fa-phone{display:flex;gap:6px;align-items:stretch;margin-top:4px;}
+        .fa-phone span{background:rgba(255,255,255,0.18);color:#fff;padding:12px;border-radius:10px;font-weight:600;display:flex;align-items:center;}
+        .fa-phone .fa-input{flex:1;margin-top:0;min-width:0;}
+        .fa-btn{width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;}
+        .fa-btn:disabled{opacity:0.6;}
+        .fa-error{display:none;margin-top:12px;color:#fecaca;font-size:13px;text-align:center;}
+        .fa-switch{margin:16px 0 0;text-align:center;font-size:14px;color:#fff;opacity:0.9;}
+        .fa-switch a{color:#fff;font-weight:700;text-decoration:underline;}
+        .fa-consents{background:rgba(0,0,0,0.18);border-radius:12px;padding:14px;margin-bottom:14px;}
+        .fa-check{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.4;cursor:pointer;margin-bottom:10px;}
+        .fa-check:last-child{margin-bottom:0;}
+        .fa-check input{margin-top:3px;width:22px;height:22px;flex-shrink:0;accent-color:#111;}
+        .fa-check a{color:inherit;text-decoration:underline;}
+        .fa-center{text-align:center;color:#fff;padding:48px 16px;}
+        .fa-link-btn{background:transparent;border:0;color:#fff;opacity:0.75;font-size:13px;text-decoration:underline;cursor:pointer;padding:8px;}
+        #card-notice{display:none;background:rgba(0,0,0,0.35);color:#fff;border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:13px;text-align:center;}
+        #card-toast{display:none;position:fixed;left:50%;transform:translateX(-50%);top:16px;max-width:88%;background:rgba(20,20,20,0.95);color:#fff;border-radius:12px;padding:12px 18px;z-index:10001;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,0.35);text-align:center;}
+        #card-active-code{display:none;align-items:center;gap:10px;background:#fff;color:#111;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;}
+        #card-active-code button{margin-left:auto;background:#111;color:#fff;border:0;border-radius:10px;padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;}
+        .fa-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;padding:20px;}
+        .fa-modal-body{background:#fff;color:#111;border-radius:20px;padding:26px 22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+        .fa-modal-body h2{margin:0 0 6px;font-size:18px;font-weight:700;}
+        .fa-modal-body .fa-check{font-size:14px;margin:14px 0;}
+    </style>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-WQHQZPV865"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'G-WQHQZPV865');
+  // Mai mandare ad Analytics la query string: contiene il token personale della card.
+  gtag('config', 'G-WQHQZPV865', { page_location: location.origin + location.pathname, page_referrer: '' });
 </script>
 </head>
 <body>
@@ -113,10 +155,31 @@
             <h2 style="margin:0 0 18px;font-size:18px;font-weight:700;color:#222;">Mostra o detta questo codice in cassa</h2>
             <div id="redeem-code" style="font-family:'SF Mono',Monaco,monospace;font-size:64px;font-weight:800;letter-spacing:14px;color:#111;background:#f5f5f7;border-radius:14px;padding:20px 0;margin-bottom:16px;">····</div>
             <p id="redeem-countdown" style="margin:0 0 18px;font-size:13px;color:#888;">Valido per <strong id="redeem-timer">5:00</strong></p>
-            <p id="redeem-cost" style="margin:0 0 22px;font-size:14px;color:#444;">Costo: <strong>0 punti</strong></p>
+            <p id="redeem-cost" style="margin:0 0 22px;font-size:14px;color:#444;font-weight:600;"></p>
             <button id="redeem-close" style="background:#111;color:#fff;border:0;border-radius:12px;padding:12px 28px;font-weight:600;font-size:14px;cursor:pointer;">Chiudi</button>
         </div>
     </div>
+
+    <!-- Modale preferenze: consensi marketing + scollega dispositivo -->
+    <div id="prefs-modal" class="fa-modal">
+        <div class="fa-modal-body">
+            <h2>Preferenze e privacy</h2>
+            <p style="margin:0;font-size:13px;color:#666;">Scegli se ricevere promozioni. Puoi cambiare idea quando vuoi.</p>
+            <label class="fa-check"><input type="checkbox" id="prefs-sms"><span>SMS con promozioni e reminder</span></label>
+            <label class="fa-check"><input type="checkbox" id="prefs-email"><span>Email con promozioni e novità</span></label>
+            <p id="prefs-error" style="display:none;color:#c00;font-size:13px;margin:0 0 10px;"></p>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+                <button type="button" id="prefs-close" style="flex:1;background:#f0f0f2;color:#111;border:0;border-radius:12px;padding:12px;font-weight:600;font-size:14px;cursor:pointer;">Chiudi</button>
+                <button type="button" id="prefs-save" style="flex:1;background:#111;color:#fff;border:0;border-radius:12px;padding:12px;font-weight:600;font-size:14px;cursor:pointer;">Salva</button>
+            </div>
+            <p style="margin:16px 0 0;text-align:center;font-size:12px;color:#666;">
+                <a href="/privacy.html" target="_blank" style="color:#666;">Informativa privacy</a> ·
+                <a href="#" id="prefs-logout" style="color:#c00;">Scollega questo dispositivo</a>
+            </p>
+        </div>
+    </div>
+
+    <div id="card-toast" role="status"></div>
 
     <div class="card-app">
         <div class="card-container">
@@ -164,13 +227,75 @@
                         <button type="submit" id="act-submit" style="width:100%;padding:14px;border-radius:12px;border:0;background:#fff;color:#111;font-weight:700;font-size:15px;cursor:pointer;">Attiva la mia card</button>
                         <p id="act-error" style="display:none;margin-top:12px;color:#fecaca;font-size:13px;text-align:center;"></p>
                     </form>
+                    <p class="fa-switch">Hai già la card? <a href="#" id="go-login">Accedi</a></p>
                 </div>
             </div>
 
+            <!-- Accesso a una card già attiva (nuovo telefono, icona in Home, vecchio link) -->
+            <div id="card-login-section" style="display:none;">
+                <div class="fa-box">
+                    <h2>Apri la tua card</h2>
+                    <p class="fa-lead" id="login-hint"></p>
+                    <form id="card-login-form" novalidate>
+                        <label class="fa-label">Cellulare
+                            <span class="fa-phone">
+                                <span>+39</span>
+                                <input class="fa-input" type="tel" id="login-phone" inputmode="tel" required autocomplete="tel-national" placeholder="333 1234567">
+                            </span>
+                        </label>
+                        <label class="fa-label" style="margin-bottom:16px;">Email
+                            <input class="fa-input" type="email" id="login-email" required autocomplete="email" placeholder="mario@esempio.it">
+                        </label>
+                        <button type="submit" id="login-submit" class="fa-btn">Apri la mia card</button>
+                        <p id="login-error" class="fa-error"></p>
+                    </form>
+                    <p class="fa-switch">Non hai ancora la card? <a href="#" id="go-activate">Attivala gratis</a></p>
+                    <p class="fa-switch" style="font-size:12px;opacity:0.7;">Non ricordi l'email? Chiedi in cassa: ti rimandano il link della card.</p>
+                </div>
+            </div>
+
+            <!-- Card creata dal negozio: manca il consenso privacy del cliente -->
+            <div id="card-consent-section" style="display:none;">
+                <div class="fa-box">
+                    <h2 id="consent-hello">Ciao 👋</h2>
+                    <p class="fa-lead">La tua card è pronta, con <strong id="consent-points">0</strong> punti già caricati. Per usarla ci serve il tuo consenso.</p>
+                    <form id="card-consent-form" novalidate>
+                        <div class="fa-consents">
+                            <label class="fa-check">
+                                <input type="checkbox" id="consent-privacy">
+                                <span>Ho letto e accetto l'<a href="/privacy.html" target="_blank">informativa privacy</a> *</span>
+                            </label>
+                            <label class="fa-check">
+                                <input type="checkbox" id="consent-sms">
+                                <span>Acconsento a ricevere SMS con promozioni e reminder <span style="opacity:.7">(facoltativo)</span></span>
+                            </label>
+                            <label class="fa-check">
+                                <input type="checkbox" id="consent-email">
+                                <span>Acconsento a ricevere email con promozioni e novità <span style="opacity:.7">(facoltativo)</span></span>
+                            </label>
+                        </div>
+                        <button type="submit" id="consent-submit" class="fa-btn">Attiva la mia card</button>
+                        <p id="consent-error" class="fa-error"></p>
+                    </form>
+                </div>
+            </div>
+
+            <div id="card-loading" class="fa-center" style="display:none;">
+                <p style="font-size:15px;opacity:0.85;">Carico la tua card…</p>
+            </div>
+
+            <div id="card-fatal" class="fa-center" style="display:none;">
+                <h2 id="fatal-title" style="margin:0 0 8px;font-size:20px;"></h2>
+                <p id="fatal-text" style="margin:0 0 20px;font-size:14px;opacity:0.85;line-height:1.45;"></p>
+                <button id="fatal-retry" class="fa-btn" style="max-width:220px;">Riprova</button>
+            </div>
+
+            <div id="card-notice"></div>
+
             <!-- Loyalty Card -->
-            <div class="loyalty-card">
-                <div class="card-customer-name" id="card-customer-name">Ospite</div>
-                <div class="card-level" id="card-level">Bronze</div>
+            <div class="loyalty-card" id="loyalty-card">
+                <div class="card-customer-name" id="card-customer-name">&nbsp;</div>
+                <div class="card-level" id="card-level">&nbsp;</div>
 
                 <div class="card-points-display">
                     <div class="card-points-value" id="card-points">0</div>
@@ -180,12 +305,16 @@
                 <div class="card-progress">
                     <div class="card-progress-fill" id="card-progress-fill" style="width:0%"></div>
                 </div>
-                <div class="card-progress-text" id="card-progress-text">0 / 500 punti per Silver</div>
+                <div class="card-progress-text" id="card-progress-text">&nbsp;</div>
             </div>
 
             <!-- Premi disponibili -->
-            <div class="card-section">
+            <div class="card-section" id="card-section-rewards">
                 <h3>🎁 Premi disponibili</h3>
+                <div id="card-active-code">
+                    <span id="active-code-text"></span>
+                    <button type="button" id="active-code-show">Mostra</button>
+                </div>
                 <div id="card-rewards">
                     <div class="reward-item">
                         <div class="reward-info">
@@ -198,7 +327,7 @@
             </div>
 
             <!-- Storico transazioni -->
-            <div class="card-section">
+            <div class="card-section" id="card-section-transactions">
                 <h3>📋 Ultime transazioni</h3>
                 <div id="card-transactions">
                     <div class="transaction-item">
@@ -210,6 +339,10 @@
                 </div>
             </div>
 
+            <div id="card-actions" style="text-align:center;padding-top:8px;">
+                <button type="button" id="open-prefs" class="fa-link-btn">Preferenze e privacy</button>
+            </div>
+
             <div id="powered-by" style="text-align:center;padding:24px 0;opacity:0.4">
                 <p style="font-size:12px;color:white">Powered by FidelAI</p>
             </div>
@@ -217,40 +350,36 @@
         </div>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyD7kHbNv09Mg-aYfFXSMKrVdi_JqlOuQF4",
-            authDomain: "fideliai-app.firebaseapp.com",
-            projectId: "fideliai-app",
-            storageBucket: "fideliai-app.firebasestorage.app",
-            messagingSenderId: "49232775542",
-            appId: "1:49232775542:web:e5e5771426462389c5d257"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
+        // La card non parla più con Firestore: tutto passa dalle Cloud Functions
+        // (functions/card-api.js). La credenziale è un token personale salvato su
+        // questo dispositivo e nell'URL (?t=…), così l'icona in Home lo conserva.
         const HOSTNAME_MERCHANTS = {
             'card.washhub.it': 'TSfZHShvSqOu4gPGA9JcV0IqmjI2',
         };
-        const params = new URLSearchParams(window.location.search);
-        const merchantId = HOSTNAME_MERCHANTS[location.hostname] || params.get('m');
-        const customerIdParam = params.get('c');
-        const isDemo = params.get('demo') === 'true';
         const API_BASE = 'https://europe-west1-fideliai-app.cloudfunctions.net';
-        const STORAGE_KEY = merchantId ? 'fidelai_customer_' + merchantId : null;
+        const params = new URLSearchParams(window.location.search);
+        const isDemo = params.get('demo') === 'true';
 
-        function getStoredCustomerId() {
-            if (!STORAGE_KEY) return null;
-            try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
-        }
-        function setStoredCustomerId(cid) {
-            if (!STORAGE_KEY) return;
-            try { localStorage.setItem(STORAGE_KEY, cid); } catch {}
-        }
+        const store = {
+            get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+            del(k) { try { localStorage.removeItem(k); } catch {} },
+        };
+
+        const hostMerchant = HOSTNAME_MERCHANTS[location.hostname] || null;
+        // Senza ?m= (icona installata dal manifest generico) si riparte dall'ultimo merchant aperto.
+        const merchantRef = hostMerchant || params.get('m') || store.get('fidelai_last_m');
+        const TOKEN_KEY = 'fidelai_token_' + merchantRef;
+        const CACHE_KEY = 'fidelai_card_' + merchantRef;
+        const LEGACY_KEY = 'fidelai_customer_' + merchantRef; // vecchie card: qui c'era il telefono
+
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        const $ = (id) => document.getElementById(id);
+
+        let token = params.get('t') || store.get(TOKEN_KEY);
+        let cardData = null;
+        let lastRefresh = 0;
 
         function normalizePhoneClient(raw) {
             var d = String(raw || '').replace(/\D/g, '');
@@ -258,235 +387,468 @@
             if (d.startsWith('39') && d.length > 10) d = d.slice(2);
             return d;
         }
+        const legacyPhone = normalizePhoneClient(params.get('c') || store.get(LEGACY_KEY));
 
-        function showActivateView() {
-            document.querySelector('.loyalty-card').style.display = 'none';
-            document.querySelectorAll('.card-section').forEach(el => el.style.display = 'none');
-            var footer = document.getElementById('powered-by');
-            if (footer) footer.style.display = 'block';
-            document.getElementById('card-main-title').textContent = 'La tua Card Fedeltà';
-            document.getElementById('card-activate-section').style.display = 'block';
+        function cardUrl(t) {
+            const q = new URLSearchParams();
+            if (!hostMerchant && merchantRef) q.set('m', merchantRef);
+            if (t) q.set('t', t);
+            const qs = q.toString();
+            return location.pathname + (qs ? '?' + qs : '');
         }
 
-        function setupActivateForm() {
-            var brand = window.__hostBrands[location.hostname];
-            var merchantSlug = (brand && brand.merchantSlug) || merchantId;
-            var form = document.getElementById('card-activate-form');
-            var errEl = document.getElementById('act-error');
-            var btn = document.getElementById('act-submit');
+        async function api(name, body) {
+            let resp;
+            try {
+                resp = await fetch(API_BASE + '/' + name, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign({ merchant: merchantRef }, body || {})),
+                });
+            } catch (e) {
+                const err = new Error('Connessione assente. Controlla la rete e riprova.');
+                err.offline = true;
+                throw err;
+            }
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.ok) {
+                const err = new Error(data.error || 'Errore temporaneo, riprova.');
+                err.code = data.code;
+                err.status = resp.status;
+                throw err;
+            }
+            return data;
+        }
 
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                errEl.style.display = 'none';
-                btn.disabled = true; btn.textContent = '…';
-                try {
-                    var name = document.getElementById('act-name').value.trim();
-                    var phone = normalizePhoneClient(document.getElementById('act-phone').value);
-                    var email = document.getElementById('act-email').value.trim().toLowerCase();
-                    var cPrivacy = document.getElementById('act-consent-privacy').checked;
-                    var cSms = document.getElementById('act-consent-sms').checked;
-                    var cEmail = document.getElementById('act-consent-email').checked;
-                    if (name.length < 2) throw new Error('Inserisci nome e cognome');
-                    if (phone.length < 9 || phone.length > 11) throw new Error('Numero di cellulare non valido');
-                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email non valida');
-                    if (!cPrivacy) throw new Error('Per attivare la card serve il consenso privacy');
-
-                    var resp = await fetch(API_BASE + '/selfActivateCard', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            merchant: merchantSlug,
-                            name, phone, email,
-                            consentPrivacy: cPrivacy,
-                            consentSms: cSms,
-                            consentEmail: cEmail,
-                        }),
-                    });
-                    var data = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !data.ok) throw new Error(data.error || 'Attivazione fallita');
-
-                    setStoredCustomerId(phone);
-                    location.replace('?c=' + encodeURIComponent(phone));
-                } catch (ex) {
-                    errEl.textContent = ex.message || 'Errore';
-                    errEl.style.display = 'block';
-                } finally {
-                    btn.disabled = false; btn.textContent = 'Attiva la mia card';
-                }
+        // ---------- viste ----------
+        const VIEWS = {
+            loading: ['card-loading'],
+            fatal: ['card-fatal'],
+            activate: ['card-activate-section'],
+            login: ['card-login-section'],
+            consent: ['card-consent-section'],
+            card: ['loyalty-card', 'card-section-rewards', 'card-section-transactions', 'card-actions'],
+        };
+        function showView(name) {
+            const visible = VIEWS[name] || [];
+            Object.values(VIEWS).flat().forEach((id) => {
+                const el = $(id);
+                if (el) el.style.display = visible.includes(id) ? '' : 'none';
             });
+            window.scrollTo(0, 0);
+        }
+        function showFatal(title, text, retry) {
+            $('fatal-title').textContent = title;
+            $('fatal-text').textContent = text || '';
+            $('fatal-retry').style.display = retry ? '' : 'none';
+            showView('fatal');
+        }
+        function showNotice(text) {
+            const el = $('card-notice');
+            el.textContent = text;
+            el.style.display = text ? 'block' : 'none';
+        }
+        let _toastTimer = null;
+        function toast(text) {
+            const el = $('card-toast');
+            el.textContent = text;
+            el.style.display = 'block';
+            clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3500);
+        }
+        function formError(id, text) {
+            const el = $(id);
+            el.textContent = text || '';
+            el.style.display = text ? 'block' : 'none';
         }
 
-        async function loadCard() {
-            if (isDemo) { renderDemo(); return; }
-
-            if (!merchantId) {
-                document.querySelector('.card-customer-name').textContent = 'Link non valido';
-                return;
+        // ---------- sessione ----------
+        function readCache() {
+            try { return JSON.parse(store.get(CACHE_KEY) || 'null'); } catch { return null; }
+        }
+        function saveSession(data) {
+            store.set(TOKEN_KEY, token);
+            store.set(CACHE_KEY, JSON.stringify({ token, at: Date.now(), data }));
+            store.del(LEGACY_KEY);
+            if (data.merchant && data.merchant.id !== merchantRef) {
+                store.set('fidelai_token_' + data.merchant.id, token);
             }
+        }
+        function clearSession() {
+            token = null;
+            cardData = null;
+            store.del(TOKEN_KEY);
+            store.del(CACHE_KEY);
+        }
+        // Dopo attivazione/login: navigazione vera all'URL col token, così "Aggiungi a Home" salva quello.
+        function enterCard(newToken) {
+            token = newToken;
+            store.set(TOKEN_KEY, token);
+            store.del(CACHE_KEY);
+            location.replace(cardUrl(token));
+        }
 
-            var cid = customerIdParam || getStoredCustomerId();
-
-            if (!cid) {
-                showActivateView();
-                setupActivateForm();
-                return;
+        // ---------- render ----------
+        function renderMerchant(m) {
+            if (!m) return;
+            const brand = window.__hostBrands[location.hostname];
+            if (!brand) {
+                $('card-merchant-name').textContent = m.businessName || 'FidelAI';
+                if (m.businessName) document.title = m.businessName + ' — Card fedeltà';
             }
+            applyBranding(m.branding || {}, m.businessName);
+        }
 
-            const merchantDoc = await db.collection('merchants').doc(merchantId).get();
-            if (merchantDoc.exists) {
-                const m = merchantDoc.data();
-                document.getElementById('card-merchant-name').textContent = m.businessName || 'FidelAI';
-                applyBranding(m);
-            }
+        function renderCard(data) {
+            const c = data.customer;
+            const points = c.points || 0;
+            const fmt = (n) => Number(n || 0).toLocaleString('it-IT');
 
-            const customerDoc = await db.collection(`merchants/${merchantId}/customers`).doc(cid).get();
-            if (!customerDoc.exists || customerDoc.data().cardAttivata !== true) {
-                // Customer non trovato o non ancora attivato → mostra form attivazione
-                if (STORAGE_KEY) { try { localStorage.removeItem(STORAGE_KEY); } catch {} }
-                showActivateView();
-                setupActivateForm();
-                return;
-            }
-
-            setStoredCustomerId(cid);
-            const customer = customerDoc.data();
-            const points = customer.totalPoints || 0;
-
-            document.getElementById('card-customer-name').textContent = customer.name;
-            document.getElementById('card-points').textContent = points.toLocaleString('it-IT');
-
-            const level = getLevel(points);
-            document.getElementById('card-level').textContent = level.name;
-
-            const progress = level.next ? Math.min(100, (points / level.next) * 100) : 100;
-            document.getElementById('card-progress-fill').style.width = progress + '%';
-            document.getElementById('card-progress-text').textContent = level.next
-                ? `${points.toLocaleString('it-IT')} / ${level.next.toLocaleString('it-IT')} punti per ${level.nextName}`
+            $('card-customer-name').textContent = c.name || 'Cliente';
+            $('card-points').textContent = fmt(points);
+            const level = c.level || { name: '' };
+            $('card-level').textContent = level.name || '';
+            $('card-progress-fill').style.width = (level.nextMin ? Math.min(100, (points / level.nextMin) * 100) : 100) + '%';
+            $('card-progress-text').textContent = level.nextMin
+                ? `${fmt(points)} / ${fmt(level.nextMin)} punti per ${level.nextName}`
                 : 'Livello massimo raggiunto!';
 
-            // Ordinamento lato client: active+orderBy(pointsCost) richiedeva un indice composito
-            // mai creato → la query falliva e i premi non comparivano (26/10/2026)
-            const rewardsSnap = await db.collection(`merchants/${merchantId}/rewards`)
-                .where('active', '==', true)
-                .get();
-            const rewardsDocs = rewardsSnap.docs.sort((a, b) => (a.data().pointsCost || 0) - (b.data().pointsCost || 0));
-
-            const container = document.getElementById('card-rewards');
-            if (rewardsSnap.empty) {
-                container.innerHTML = '<div class="reward-item"><div class="reward-info"><h4>Nessun premio</h4><p>Torna presto: stiamo aggiungendo i premi.</p></div></div>';
+            const rc = $('card-rewards');
+            rc.innerHTML = '';
+            if (!data.rewards || !data.rewards.length) {
+                rc.innerHTML = '<div class="reward-item"><div class="reward-info"><h4>Nessun premio</h4><p>Torna presto: stiamo aggiungendo i premi.</p></div></div>';
             } else {
-                container.innerHTML = '';
-                rewardsDocs.forEach(doc => {
-                    const r = doc.data();
+                data.rewards.forEach((r) => {
                     const canRedeem = points >= r.pointsCost;
                     const item = document.createElement('div');
                     item.className = 'reward-item';
-                    item.innerHTML = `
-                        <div class="reward-info">
-                            <h4></h4>
-                            <p></p>
-                        </div>
-                        <button class="reward-btn ${canRedeem ? 'available' : 'locked'}" ${canRedeem ? '' : 'disabled'}>
-                            ${canRedeem ? 'Riscatta' : r.pointsCost + ' pts'}
-                        </button>
-                    `;
-                    item.querySelector('h4').textContent = r.name || '';
-                    item.querySelector('p').textContent = (r.pointsCost || 0).toLocaleString('it-IT') + ' punti';
-                    if (canRedeem) {
-                        item.querySelector('button').addEventListener('click', () => onRedeemClick(doc.id, r));
-                    }
-                    container.appendChild(item);
+                    item.innerHTML = '<div class="reward-info"><h4></h4><p></p></div><button class="reward-btn"></button>';
+                    item.querySelector('h4').textContent = r.name;
+                    item.querySelector('p').textContent = fmt(r.pointsCost) + ' punti' + (r.description ? ' · ' + r.description : '');
+                    const btn = item.querySelector('button');
+                    btn.classList.add(canRedeem ? 'available' : 'locked');
+                    btn.textContent = canRedeem ? 'Riscatta' : 'Mancano ' + fmt(r.pointsCost - points);
+                    btn.disabled = !canRedeem;
+                    if (canRedeem) btn.addEventListener('click', () => onRedeemClick(r, btn));
+                    rc.appendChild(item);
                 });
             }
 
-            const transSnap = await db.collection(`merchants/${merchantId}/transactions`)
-                .where('customerId', '==', cid)
-                .orderBy('createdAt', 'desc')
-                .limit(10)
-                .get();
+            const ac = data.activeCode && data.activeCode.expiresAt > Date.now() ? data.activeCode : null;
+            const acEl = $('card-active-code');
+            acEl.style.display = ac ? 'flex' : 'none';
+            if (ac) {
+                $('active-code-text').textContent = 'Hai un codice attivo per "' + ac.rewardName + '"';
+                $('active-code-show').onclick = () => showRedeemModal(ac.code, ac.expiresAt, ac.rewardName, ac.pointsCost);
+            }
 
-            if (!transSnap.empty) {
-                const tc = document.getElementById('card-transactions');
-                tc.innerHTML = '';
-                transSnap.forEach(doc => {
-                    const t = doc.data();
-                    const date = t.createdAt ? t.createdAt.toDate().toLocaleDateString('it-IT') : '';
+            const tc = $('card-transactions');
+            tc.innerHTML = '';
+            if (!data.transactions || !data.transactions.length) {
+                tc.innerHTML = '<div class="transaction-item"><div class="transaction-info"><h4>Nessuna transazione</h4><p>I tuoi punti appariranno qui dopo la prossima visita</p></div></div>';
+            } else {
+                data.transactions.forEach((t) => {
                     const item = document.createElement('div');
                     item.className = 'transaction-item';
-                    item.innerHTML = `
-                        <div class="transaction-info">
-                            <h4></h4>
-                            <p></p>
-                        </div>
-                        <span class="transaction-points">${t.type === 'earn' ? '+' : '-'}${t.points}</span>
-                    `;
+                    item.innerHTML = '<div class="transaction-info"><h4></h4><p></p></div><span class="transaction-points"></span>';
                     item.querySelector('h4').textContent = t.type === 'earn' ? 'Acquisto' : (t.rewardName || 'Riscatto premio');
-                    item.querySelector('p').textContent = date;
+                    item.querySelector('p').textContent = t.createdAt ? new Date(t.createdAt).toLocaleDateString('it-IT') : '';
+                    item.querySelector('.transaction-points').textContent = (t.type === 'earn' ? '+' : '-') + fmt(t.points);
                     tc.appendChild(item);
                 });
             }
         }
 
-        async function onRedeemClick(rewardId, reward) {
-            var brand = window.__hostBrands[location.hostname];
-            var merchantSlug = (brand && brand.merchantSlug) || merchantId;
-            var cid = customerIdParam || getStoredCustomerId();
-            if (!cid) return;
-            if (!confirm(`Riscatti "${reward.name}" per ${reward.pointsCost} punti?`)) return;
+        function showCardOrConsent(data) {
+            renderCard(data);
+            if (data.customer.needsConsent) {
+                $('consent-hello').textContent = 'Ciao ' + (data.customer.name || '').split(' ')[0] + ' 👋';
+                $('consent-points').textContent = Number(data.customer.points || 0).toLocaleString('it-IT');
+                showView('consent');
+            } else {
+                showView('card');
+                setupInstallBanner();
+            }
+        }
 
+        function showLogin(opts) {
+            opts = opts || {};
+            if (opts.phone) $('login-phone').value = opts.phone;
+            if (opts.email) $('login-email').value = opts.email;
+            $('login-hint').textContent = opts.hint || 'Inserisci il cellulare e l\'email che hai usato quando hai attivato la card.';
+            formError('login-error', opts.error || '');
+            showView('login');
+        }
+
+        // ---------- caricamento ----------
+        async function refresh() {
+            lastRefresh = Date.now();
+            let data;
             try {
-                var resp = await fetch(API_BASE + '/generateRedeemCode', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ merchant: merchantSlug, customerId: cid, rewardId }),
+                data = await api('getCardData', token ? { token } : {});
+                // Link vecchio/revocato nell'URL ma sessione valida su questo dispositivo: usa quella.
+                const stored = store.get(TOKEN_KEY);
+                if (!data.customer && token && stored && stored !== token) {
+                    token = stored;
+                    data = await api('getCardData', { token });
+                }
+            } catch (e) {
+                if (cardData) {
+                    showNotice(e.offline ? 'Sei offline: i punti mostrati potrebbero non essere aggiornati.' : e.message);
+                    return;
+                }
+                if (e.code === 'bad-merchant') {
+                    showFatal('Link non valido', 'Chiedi in negozio il link o il QR della tua card.');
+                } else {
+                    showFatal('Card non disponibile', e.message, true);
+                }
+                return;
+            }
+            showNotice('');
+            renderMerchant(data.merchant);
+
+            if (data.customer) {
+                cardData = data;
+                saveSession(data);
+                if (params.get('t') !== token || params.has('c')) {
+                    try { history.replaceState(null, '', cardUrl(token)); } catch {}
+                }
+                showCardOrConsent(data);
+                return;
+            }
+
+            const hadSession = !!token;
+            clearSession();
+            if (hadSession || legacyPhone) {
+                showLogin({
+                    phone: legacyPhone,
+                    hint: 'Abbiamo reso la tua card più sicura. Per rientrare conferma il cellulare e l\'email usati all\'attivazione.',
                 });
-                var data = await resp.json().catch(() => ({}));
-                if (!resp.ok || !data.ok) throw new Error(data.error || 'Errore');
+            } else if (isStandalone) {
+                showLogin({});
+            } else {
+                showView('activate');
+            }
+        }
+
+        async function init() {
+            if (isDemo) { showView('card'); renderDemo(); return; }
+            if (!merchantRef) {
+                showFatal('Link non valido', 'Chiedi in negozio il link o il QR della tua card.');
+                return;
+            }
+            if (!hostMerchant && params.get('m')) store.set('fidelai_last_m', params.get('m'));
+
+            // Mostra subito l'ultima card vista su questo dispositivo, poi aggiorna dalla rete.
+            const cached = readCache();
+            if (token && cached && cached.token === token && cached.data && cached.data.customer) {
+                cardData = cached.data;
+                renderMerchant(cached.data.merchant);
+                showCardOrConsent(cached.data);
+            } else {
+                showView('loading');
+            }
+            await refresh();
+        }
+
+        // ---------- attivazione / accesso ----------
+        function busy(btn, on, label) {
+            btn.disabled = on;
+            btn.textContent = on ? 'Un attimo…' : label;
+        }
+
+        $('card-activate-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = $('act-submit');
+            formError('act-error', '');
+            const name = $('act-name').value.trim();
+            const phone = normalizePhoneClient($('act-phone').value);
+            const email = $('act-email').value.trim().toLowerCase();
+            const cPrivacy = $('act-consent-privacy').checked;
+            if (name.length < 2) return formError('act-error', 'Inserisci nome e cognome');
+            if (phone.length < 9 || phone.length > 11) return formError('act-error', 'Numero di cellulare non valido');
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError('act-error', 'Email non valida');
+            if (!cPrivacy) return formError('act-error', 'Per attivare la card serve il consenso privacy');
+
+            busy(btn, true);
+            try {
+                const data = await api('selfActivateCard', {
+                    name, phone, email,
+                    consentPrivacy: cPrivacy,
+                    consentSms: $('act-consent-sms').checked,
+                    consentEmail: $('act-consent-email').checked,
+                });
+                enterCard(data.token);
+            } catch (ex) {
+                busy(btn, false, 'Attiva la mia card');
+                if (ex.code === 'already-active') {
+                    showLogin({ phone, error: 'Questo numero ha già una card attiva: accedi con l\'email usata all\'attivazione, oppure chiedi in cassa.' });
+                } else {
+                    formError('act-error', ex.message);
+                }
+            }
+        });
+
+        $('card-login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = $('login-submit');
+            formError('login-error', '');
+            const phone = normalizePhoneClient($('login-phone').value);
+            const email = $('login-email').value.trim().toLowerCase();
+            if (phone.length < 9 || phone.length > 11) return formError('login-error', 'Numero di cellulare non valido');
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError('login-error', 'Email non valida');
+            busy(btn, true);
+            try {
+                const data = await api('cardLogin', { phone, email });
+                enterCard(data.token);
+            } catch (ex) {
+                busy(btn, false, 'Apri la mia card');
+                formError('login-error', ex.message);
+            }
+        });
+
+        $('go-login').addEventListener('click', (e) => {
+            e.preventDefault();
+            showLogin({ phone: normalizePhoneClient($('act-phone').value), email: $('act-email').value.trim() });
+        });
+        $('go-activate').addEventListener('click', (e) => {
+            e.preventDefault();
+            const p = normalizePhoneClient($('login-phone').value);
+            if (p) $('act-phone').value = p;
+            showView('activate');
+        });
+        $('fatal-retry').addEventListener('click', () => { showView('loading'); refresh(); });
+
+        // Card creata dal negozio: prima di usarla serve il consenso privacy del cliente.
+        $('card-consent-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = $('consent-submit');
+            formError('consent-error', '');
+            if (!$('consent-privacy').checked) return formError('consent-error', 'Per usare la card serve il consenso privacy');
+            busy(btn, true);
+            try {
+                await api('cardUpdateProfile', {
+                    token,
+                    consentPrivacy: true,
+                    consentSms: $('consent-sms').checked,
+                    consentEmail: $('consent-email').checked,
+                });
+                await refresh();
+            } catch (ex) {
+                formError('consent-error', ex.message);
+            }
+            busy(btn, false, 'Attiva la mia card');
+        });
+
+        // ---------- riscatto premi ----------
+        async function onRedeemClick(reward, btn) {
+            if (!token) return;
+            if (!confirm(`Riscatti "${reward.name}" per ${reward.pointsCost} punti?\n\nTi diamo un codice da mostrare in cassa: i punti vengono scalati solo quando il negozio lo conferma.`)) return;
+            btn.disabled = true;
+            try {
+                const data = await api('generateRedeemCode', { token, rewardId: reward.id });
                 showRedeemModal(data.code, data.expiresAt, data.rewardName, data.pointsCost);
             } catch (ex) {
-                alert(ex.message || 'Errore');
+                if (ex.code === 'bad-token') { await refresh(); return; }
+                toast(ex.message);
             }
+            btn.disabled = false;
         }
 
         let _redeemTimerId = null;
+        let _redeemPollId = null;
+        function closeRedeemModal() {
+            $('redeem-modal').style.display = 'none';
+            clearInterval(_redeemTimerId);
+            clearInterval(_redeemPollId);
+        }
         function showRedeemModal(code, expiresAtMs, rewardName, pointsCost) {
-            var modal = document.getElementById('redeem-modal');
-            document.getElementById('redeem-code').textContent = code;
-            document.getElementById('redeem-reward-name').textContent = rewardName || 'Premio';
-            document.getElementById('redeem-cost').innerHTML = 'Costo: <strong>' + pointsCost + ' punti</strong>';
-            modal.style.display = 'flex';
+            $('redeem-code').textContent = code;
+            $('redeem-reward-name').textContent = rewardName || 'Premio';
+            $('redeem-cost').textContent = 'Costo: ' + Number(pointsCost || 0).toLocaleString('it-IT') + ' punti';
+            $('redeem-countdown').innerHTML = 'Valido per <strong id="redeem-timer">5:00</strong>';
+            $('redeem-modal').style.display = 'flex';
 
             function tick() {
-                var remaining = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
-                var m = Math.floor(remaining / 60);
-                var s = remaining % 60;
-                document.getElementById('redeem-timer').textContent = m + ':' + String(s).padStart(2, '0');
+                const remaining = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+                const timer = $('redeem-timer');
+                if (timer) timer.textContent = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
                 if (remaining <= 0) {
-                    document.getElementById('redeem-countdown').innerHTML = '<span style="color:#c00;">Codice scaduto — riprova</span>';
-                    if (_redeemTimerId) clearInterval(_redeemTimerId);
+                    $('redeem-countdown').innerHTML = '<span style="color:#c00;">Codice scaduto — chiudi e riprova</span>';
+                    clearInterval(_redeemTimerId);
+                    clearInterval(_redeemPollId);
                 }
             }
+            clearInterval(_redeemTimerId);
+            clearInterval(_redeemPollId);
             tick();
-            if (_redeemTimerId) clearInterval(_redeemTimerId);
             _redeemTimerId = setInterval(tick, 1000);
+
+            // Quando la cassa conferma il codice, la card si aggiorna da sola.
+            const pointsBefore = cardData ? cardData.customer.points : null;
+            _redeemPollId = setInterval(async () => {
+                try {
+                    const data = await api('getCardData', { token });
+                    if (!data.customer) return;
+                    const consumed = !data.activeCode || data.activeCode.code !== code;
+                    if (consumed && Date.now() < expiresAtMs) {
+                        closeRedeemModal();
+                        cardData = data;
+                        saveSession(data);
+                        renderCard(data);
+                        if (pointsBefore !== null && data.customer.points < pointsBefore) toast('Premio riscattato! 🎉');
+                    }
+                } catch {}
+            }, 6000);
         }
-        document.getElementById('redeem-close').addEventListener('click', () => {
-            document.getElementById('redeem-modal').style.display = 'none';
-            if (_redeemTimerId) clearInterval(_redeemTimerId);
-            // Ricarica per aggiornare punti e storico
-            loadCard();
+        $('redeem-close').addEventListener('click', () => {
+            closeRedeemModal();
+            refresh();
         });
 
-        function applyBranding(merchant) {
-            const WHITELABEL_PLANS = ['pro', 'business'];
-            const plan = merchant.plan || 'starter';
-            const branding = merchant.branding || {};
-            if (!WHITELABEL_PLANS.includes(plan)) return;
+        // ---------- preferenze ----------
+        $('open-prefs').addEventListener('click', () => {
+            if (!cardData) return;
+            const c = cardData.customer.consents || {};
+            $('prefs-sms').checked = c.sms === true;
+            $('prefs-email').checked = c.email === true;
+            formError('prefs-error', '');
+            $('prefs-modal').style.display = 'flex';
+        });
+        $('prefs-close').addEventListener('click', () => { $('prefs-modal').style.display = 'none'; });
+        $('prefs-save').addEventListener('click', async () => {
+            const btn = $('prefs-save');
+            busy(btn, true);
+            try {
+                const data = await api('cardUpdateProfile', {
+                    token,
+                    consentSms: $('prefs-sms').checked,
+                    consentEmail: $('prefs-email').checked,
+                });
+                cardData.customer.consents = data.consents;
+                saveSession(cardData);
+                $('prefs-modal').style.display = 'none';
+                toast('Preferenze salvate');
+            } catch (ex) {
+                formError('prefs-error', ex.message);
+            }
+            busy(btn, false, 'Salva');
+        });
+        $('prefs-logout').addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (!confirm('Vuoi scollegare la card da questo dispositivo? Potrai rientrare con cellulare ed email.')) return;
+            try { await api('cardLogout', { token }); } catch {}
+            clearSession();
+            location.replace(cardUrl(null));
+        });
 
+        // ---------- branding ----------
+        function applyBranding(branding, businessName) {
+            if (window.__hostBrands[location.hostname]) return; // l'host white-label ha già il suo brand
             if (branding.logoUrl) {
-                const img = document.getElementById('card-merchant-logo');
+                const img = $('card-merchant-logo');
                 img.src = branding.logoUrl;
-                img.alt = merchant.businessName || '';
+                img.alt = businessName || '';
                 img.style.display = 'block';
             }
             if (branding.primaryColor && /^#[0-9a-fA-F]{6}$/.test(branding.primaryColor)) {
@@ -499,7 +861,7 @@
                 if (meta) meta.setAttribute('content', dark);
             }
             if (branding.hideFidelaiBranding) {
-                const footer = document.getElementById('powered-by');
+                const footer = $('powered-by');
                 if (footer) footer.style.display = 'none';
             }
         }
@@ -515,105 +877,87 @@
             return '#' + [adj(r), adj(g), adj(b)].map(x => x.toString(16).padStart(2, '0')).join('');
         }
 
+        // ---------- installazione in Home ----------
+        // Il banner compare solo a card attiva: su iPhone l'icona in Home salva
+        // l'URL corrente, che a questo punto contiene il token della card.
+        let _installReady = false;
+        let _deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            _deferredPrompt = e;
+            if (_installReady) $('install-banner').style.display = 'block';
+        });
         function setupInstallBanner() {
-            const banner = document.getElementById('install-banner');
-            const btn = document.getElementById('install-btn');
-            const closeBtn = document.getElementById('install-close');
-            const text = document.getElementById('install-text');
-            const sub = document.getElementById('install-sub');
-            if (!banner) return;
-
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (_installReady) return;
+            _installReady = true;
+            const banner = $('install-banner');
+            const btn = $('install-btn');
             if (isStandalone) return;
-            if (sessionStorage.getItem('installBannerDismissed') === '1') return;
+            try { if (sessionStorage.getItem('installBannerDismissed') === '1') return; } catch {}
 
-            closeBtn?.addEventListener('click', () => {
+            $('install-close').addEventListener('click', () => {
                 banner.style.display = 'none';
-                sessionStorage.setItem('installBannerDismissed', '1');
+                try { sessionStorage.setItem('installBannerDismissed', '1'); } catch {}
             });
-
-            let deferredPrompt = null;
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                banner.style.display = 'block';
+            btn.addEventListener('click', async () => {
+                if (!_deferredPrompt) return;
+                _deferredPrompt.prompt();
+                await _deferredPrompt.userChoice;
+                _deferredPrompt = null;
+                banner.style.display = 'none';
             });
-
-            btn?.addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    await deferredPrompt.userChoice;
-                    deferredPrompt = null;
-                    banner.style.display = 'none';
-                }
-            });
+            if (_deferredPrompt) banner.style.display = 'block';
 
             const ua = window.navigator.userAgent;
-            const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-            const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
-            if (isIOS && isSafari) {
-                text.textContent = 'Aggiungi alla schermata Home';
-                sub.textContent = 'Tocca ⬆️ Condividi → "Aggiungi alla schermata Home"';
+            if (window.__isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)) {
+                $('install-text').textContent = 'Aggiungi alla schermata Home';
+                $('install-sub').textContent = 'Tocca Condividi ⬆️ e poi "Aggiungi alla schermata Home"';
                 btn.style.display = 'none';
                 setTimeout(() => { banner.style.display = 'block'; }, 1500);
             }
-        }
-
-        function getLevel(points) {
-            const levels = [
-                { name: 'Bronze', min: 0, next: 500, nextName: 'Silver' },
-                { name: 'Silver', min: 500, next: 1500, nextName: 'Gold' },
-                { name: 'Gold', min: 1500, next: 5000, nextName: 'Platinum' },
-                { name: 'Platinum', min: 5000, next: null, nextName: null }
-            ];
-            let current = levels[0];
-            for (const lvl of levels) {
-                if (points >= lvl.min) current = lvl;
-            }
-            return current;
         }
 
         function renderDemo() {
             const brandDemo = params.get('brand') === 'custom';
             if (brandDemo) {
                 applyBranding({
-                    plan: 'pro',
-                    businessName: 'Caffè Aurora',
-                    branding: {
-                        logoUrl: "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60"><rect width="120" height="60" rx="12" fill="#0F766E"/><text x="60" y="38" font-family="Inter,sans-serif" font-size="22" font-weight="800" fill="#FEF3C7" text-anchor="middle">AURORA</text></svg>'),
-                        primaryColor: '#0F766E',
-                        hideFidelaiBranding: true
-                    }
-                });
-                document.getElementById('card-merchant-name').textContent = 'Caffè Aurora';
+                    logoUrl: "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60"><rect width="120" height="60" rx="12" fill="#0F766E"/><text x="60" y="38" font-family="Inter,sans-serif" font-size="22" font-weight="800" fill="#FEF3C7" text-anchor="middle">AURORA</text></svg>'),
+                    primaryColor: '#0F766E',
+                    hideFidelaiBranding: true
+                }, 'Caffè Aurora');
+                $('card-merchant-name').textContent = 'Caffè Aurora';
             } else {
-                document.getElementById('card-merchant-name').textContent = 'Bar Roma';
+                $('card-merchant-name').textContent = 'Bar Roma';
             }
-            document.getElementById('card-customer-name').textContent = 'Marco Rossi';
-            document.getElementById('card-points').textContent = '1.250';
-            document.getElementById('card-level').textContent = 'Silver ⭐';
-            document.getElementById('card-progress-fill').style.width = '83%';
-            document.getElementById('card-progress-text').textContent = '1.250 / 1.500 punti per Gold';
-            document.getElementById('card-rewards').innerHTML = `
+            $('card-actions').style.display = 'none';
+            $('card-customer-name').textContent = 'Marco Rossi';
+            $('card-points').textContent = '1.250';
+            $('card-level').textContent = 'Silver ⭐';
+            $('card-progress-fill').style.width = '83%';
+            $('card-progress-text').textContent = '1.250 / 1.500 punti per Gold';
+            $('card-rewards').innerHTML = `
                 <div class="reward-item"><div class="reward-info"><h4>Caffè omaggio</h4><p>100 punti</p></div><button class="reward-btn available">Riscatta</button></div>
                 <div class="reward-item"><div class="reward-info"><h4>Sconto 10%</h4><p>500 punti</p></div><button class="reward-btn available">Riscatta</button></div>
                 <div class="reward-item"><div class="reward-info"><h4>Prodotto gratis</h4><p>1.000 punti</p></div><button class="reward-btn available">Riscatta</button></div>
             `;
-            document.getElementById('card-transactions').innerHTML = `
+            $('card-transactions').innerHTML = `
                 <div class="transaction-item"><div class="transaction-info"><h4>Acquisto</h4><p>12/04/2026</p></div><span class="transaction-points">+25</span></div>
                 <div class="transaction-item"><div class="transaction-info"><h4>Acquisto</h4><p>10/04/2026</p></div><span class="transaction-points">+18</span></div>
                 <div class="transaction-item"><div class="transaction-info"><h4>Riscatto premio</h4><p>08/04/2026</p></div><span class="transaction-points">-100</span></div>
             `;
         }
 
-        loadCard();
-        setupInstallBanner();
+        // Riaprendo l'app (icona in Home) i punti si aggiornano senza ricaricare.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && cardData && !isDemo && Date.now() - lastRefresh > 30000) refresh();
+        });
+
+        init();
     </script>
 
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW registered, scope:', reg.scope))
                 .catch(err => console.warn('SW registration failed:', err));
         }
     </script>

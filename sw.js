@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fidelai-card-v9';
+const CACHE_NAME = 'fidelai-card-v10';
 
 const STATIC_ASSETS = [
   '/card.html',
@@ -30,30 +30,46 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: cache-first for static assets, network-first for API calls
+// Fetch: rete prima di tutto per pagine e file del sito (così un deploy arriva
+// subito a tutti), cache solo come paracadute offline. Cache-first solo per i font.
 self.addEventListener('fetch', event => {
   // Solo GET: le POST verso Cloud Functions non vanno né lette né scritte in cache
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Network-first for Firestore / API requests
-  if (url.hostname.includes('googleapis.com') && !url.pathname.includes('/css')) {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(navigate(event.request, url));
+    return;
+  }
+  if (url.origin === self.location.origin) {
     event.respondWith(networkFirst(event.request));
     return;
   }
-  if (url.hostname.includes('firestore') || url.hostname.includes('firebaseio')) {
-    event.respondWith(networkFirst(event.request));
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    event.respondWith(cacheFirst(event.request));
     return;
   }
-
-  // Cache-first for everything else (HTML, CSS, fonts, scripts)
-  event.respondWith(cacheFirst(event.request));
+  // Tutto il resto (API, analytics): direttamente in rete, niente cache.
 });
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
+// Pagine: sempre dalla rete. La card viene salvata sotto /card.html SENZA query
+// string (nell'URL c'è il token personale) e fa da fallback quando si è offline.
+async function navigate(request, url) {
+  try {
+    const response = await fetch(request);
+    if (response.ok && url.pathname === '/card.html') {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put('/card.html', response.clone());
+    }
+    return response;
+  } catch {
+    const isCard = url.pathname === '/card.html' || self.location.hostname.startsWith('card.');
+    const cached = isCard ? await caches.match('/card.html') : null;
+    return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
+  }
+}
 
+async function networkFirst(request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -62,19 +78,22 @@ async function cacheFirst(request) {
     }
     return response;
   } catch {
-    if (request.mode === 'navigate') {
-      return caches.match('/card.html');
-    }
-    return new Response('Offline', { status: 503, statusText: 'Offline' });
+    const cached = await caches.match(request);
+    return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
   }
 }
 
-async function networkFirst(request) {
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
   try {
     const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
     return response;
   } catch {
-    const cached = await caches.match(request);
-    return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
+    return new Response('Offline', { status: 503, statusText: 'Offline' });
   }
 }
